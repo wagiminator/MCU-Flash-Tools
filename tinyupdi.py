@@ -109,20 +109,17 @@ def _main():
             raise Exception('Found device is not ' + args.device)
 
         # Perform chip erase
-        if args.erase:
-            if args.flash is not None:
-                print('Performing chip erase ...')
-                tinyupdi.erase()
+        if (args.erase) or (args.flash is not None):
+            print('Performing chip erase ...')
+            tinyupdi.erase()
 
         # Flash binary file
         if args.flash is not None:
-            print('Performing chip erase ...')
-            tinyupdi.erase()
             print('Reading ' + args.flash + ' ...')
             with open(args.flash, 'rb') as f: data = f.read()
-            print('Flashing', len(data), 'bytes of firmware ...')
+            print('Flashing', len(data), 'bytes ...')
             tinyupdi.flash_data(data)
-            print('Verifying', len(data), 'bytes of firmware ...')
+            print('Verifying', len(data), 'bytes ...')
             tinyupdi.verify_data(data)
 
         # Write fuses
