@@ -20,7 +20,8 @@
 #
 # Operating Instructions:
 # -----------------------
-# You need to install PyUSB to use puyaisp. Install it via "python3 -m pip install pyusb".
+# You need to install PySerial to use puyaisp.
+# Install it via "python3 -m pip install pyserial".
 # You may need to install a driver for your USB-to-serial converter.
 #
 # Connect your USB-to-serial converter to your MCU:
