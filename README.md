@@ -83,6 +83,47 @@ Example:
 python3 rvprog.py -f firmware.bin
 ```
 
+## puyaisp
+### Description
+With this tool, PUYA microcontrollers of the series PY32F0xx can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded bootloader.
+
+### Preparations
+If necessary, a driver for the USB-to-serial converter used must be installed.
+
+### Usage
+Connect your USB-to-serial converter to your PY32F0xx MCU as follows:
+
+```
+USB2SERIAL            PY32F0xx
++--------+      +-------------------+
+|     RXD| <--- |PA2 or PA9  or PA14|
+|     TXD| ---> |PA3 or PA10 or PA15|
+|     VDD| ---> |VDD                |
+|     GND| ---> |GND                |
++--------+      +-------------------+
+```
+
+Set your MCU to boot mode by using ONE of the following methods:
+1. Disconnect your USB-to-serial converter, pull BOOT0 pin (PF4) to VCC (or press and hold the BOOT button, if your board has one), then connect the converter to your USB port. BOOT0 pin (or BOOT button) can be released now.
+2. Connect your USB-to-serial converter to your USB port. Pull BOOT0 pin (PF4) to VCC, then pull nRST (PF2) shortly to GND (or press and hold the BOOT button, then press and release the RESET button and then release the BOOT button, if your board has them).
+
+```
+Usage: puyaisp.py [-h] [-u] [-l] [-e] [-o] [-G] [-R] [-f FLASH]
+
+Optional arguments:
+  -h, --help                show this help message and exit
+  -u, --unlock              unlock chip (do not combine)
+  -l, --lock                lock chip (not implemented yet)
+  -e, --erase               perform a whole chip erase
+  -o, --rstoption           reset option bytes (not implemented yet)
+  -G, --nrstgpio            make nRST pin a GPIO pin (not implemented yet)
+  -R, --nrstreset           make nRST pin a RESET pin (not implemented yet)
+  -f FLASH, --flash FLASH   write BIN file to flash and verify
+
+Example:
+python3 puyaisp.py -f firmware.bin
+```
+
 ## tinyupdi
 ### Description
 This tool allows tinyAVR series 0, 1, and 2 microcontrollers to be programmed using a USB-to-serial converter connected in a special way to the UPDI pin (also called SerialUPDI). More information can be found [here](https://github.com/SpenceKonde/AVR-Guidance/blob/master/UPDI/jtag2updi.md).
@@ -95,6 +136,8 @@ Connect the USB-to-serial converter via USB to the PC and via the circuit descri
 
 ```
 Usage: tinyupdi.py [-h] [-d DEVICE] [-e] [-f FLASH] [-fs [FUSES [FUSES ...]]]
+
+Optional arguments:
   -h, --help                show help message and exit
   -d, --device              set target device (if not set, it will be auto-detected)
   -e, --erase               perform a chip erase (implied with --flash)
@@ -107,6 +150,6 @@ python3 tinyupdi.py -f firmware.bin -fs 2:0x01 6:0x04 8:0x00
 
 ## Links
 1. [MCU Templates](https://github.com/wagiminator/MCU-Templates)
-2. [WCH Development Boards](https://github.com/wagiminator/Development-Boards)
+2. [MCU Development Boards](https://github.com/wagiminator/Development-Boards)
 3. [AVR Development Boards](https://github.com/wagiminator/AVR-Development-Boards)
 4. [SerialUPDI Programmers](https://github.com/wagiminator/AVR-Programmer)
