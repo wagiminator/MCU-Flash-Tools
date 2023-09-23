@@ -112,12 +112,12 @@ Usage: puyaisp.py [-h] [-u] [-l] [-e] [-o] [-G] [-R] [-f FLASH]
 
 Optional arguments:
   -h, --help                show this help message and exit
-  -u, --unlock              unlock chip (do not combine)
-  -l, --lock                lock chip (not implemented yet)
+  -u, --unlock              unlock chip (remove read protection)
+  -l, --lock                lock chip (set read protection)
   -e, --erase               perform a whole chip erase
-  -o, --rstoption           reset option bytes (not implemented yet)
-  -G, --nrstgpio            make nRST pin a GPIO pin (not implemented yet)
-  -R, --nrstreset           make nRST pin a RESET pin (not implemented yet)
+  -o, --rstoption           reset option bytes
+  -G, --nrstgpio            make nRST pin a GPIO pin
+  -R, --nrstreset           make nRST pin a RESET pin
   -f FLASH, --flash FLASH   write BIN file to flash and verify
 
 Example:
