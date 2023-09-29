@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   puyaisp - USB Programming Tool for PUYA PY32F0xx Microcontrollers
-# Version:   v1.0
+# Version:   v1.1
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -196,9 +196,9 @@ class Programmer(Serial):
     # Check if device acknowledged
     def checkreply(self):
         reply = self.read(1)
-        if len(reply) == 0 or reply[0] != PY_REPLY_OK:
-            return False
-        return True
+        return (len(reply) == 1 and reply[0] == PY_REPLY_OK)
+
+    #--------------------------------------------------------------------------------
 
     # Unlock (clear) chip and reset
     def unlock(self):
@@ -219,7 +219,7 @@ class Programmer(Serial):
     def readinfo(self):
         # still need to find out meanings
         self.info = self.readinfostream(0x00)
-        self.pid  = self.readinfostream(0x02)
+        self.pid  = int.from_bytes(self.readinfostream(0x02), byteorder='big')
         self.locked = False
         try:
             self.readoption()
@@ -257,6 +257,8 @@ class Programmer(Serial):
         self.option[1] &= 0xbf
         self.option[3] |= 0x40
 
+    #--------------------------------------------------------------------------------
+
     # Erase all
     def erase(self):
         self.sendcommand(PY_CMD_ERASE)
@@ -277,6 +279,8 @@ class Programmer(Serial):
         self.write(b'\x20\x00\x00\x00\x20')
         if not self.checkreply():
             raise Exception('Failed to erase sectors')
+
+    #--------------------------------------------------------------------------------
 
     # Read flash
     def readflash(self, addr, size):
@@ -324,6 +328,8 @@ class Programmer(Serial):
         if (len(data) % pagesize) > 0:
             data += b'\xff' * (pagesize - (len(data) % pagesize))
         return data
+
+    #--------------------------------------------------------------------------------
 
     # Jump to address
     def gotoaddress(self, addr):
