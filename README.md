@@ -1,16 +1,24 @@
 # MCU ISP Flash Tools
 Collection of simple ISP flash tools for various microcontrollers written in Python as single scripts.
 
-In order for these tools to work, Python3 must be installed on your system. To do this, follow these [instructions](https://www.pythontutorial.net/getting-started/install-python/). In addition [PyUSB](https://github.com/pyusb/pyusb)  and [PySerial](https://github.com/pyserial/pyserial) must be installed. On Linux (Debian-based), all of this can be done with the following commands:
+In order for these tools to work, Python3 must be installed on your system. To do this, follow these [instructions](https://www.pythontutorial.net/getting-started/install-python/). In addition [PyUSB](https://github.com/pyusb/pyusb) and [PySerial](https://github.com/pyserial/pyserial) must be installed. On Linux (Debian-based), all of this can be done with the following commands:
 
 ```
 sudo apt install python3 python3-pip
 python3 -m pip install pyusb pyserial
 ```
 
+Windows users in particular may also need to install [libusb](https://github.com/libusb/libusb).
+
+Tools available:
+- [chprog.py - Flashing CH55x, CH32Fxxx, CH32Vxxx via embedded USB bootloader](#chprog)
+- [rvprog.py - Flashing CH32Vxxx with WCH-LinkE](#rvprog)
+- [py32iap.py - Flashing PY32F0xx with USB-to-serial converter via embedded USART bootloader](#py32iap)
+- [tinyupdi.py - Flashing tinyAVR with USB-to-serial converter](#tinyupdi)
+
 ## chprog
 ### Description
-With this tool, almost all WCH microcontrollers (e.g. CH55x, CH32Fxxx and CH32Vxxx) which have a factory-builtin bootloader (v2.x.x) can be flashed via USB.
+With this tool, almost all WCH microcontrollers (e.g. CH55x, CH32Fxxx, and CH32Vxxx) which have a factory-builtin bootloader (v2.x.x) can be flashed via USB.
 
 ### Preparations
 On Linux you do not need to install a driver for the USB bootloader. However, by default Linux will not expose enough permission to upload your code. In order to fix this, open a terminal and run the following commands:
@@ -83,7 +91,7 @@ Example:
 python3 rvprog.py -f firmware.bin
 ```
 
-## puyaisp
+## py32iap
 ### Description
 With this tool, PUYA microcontrollers of the series PY32F0xx can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded bootloader.
 
@@ -104,24 +112,24 @@ USB2SERIAL            PY32F0xx
 ```
 
 Set your MCU to boot mode by using ONE of the following methods:
-1. Disconnect your USB-to-serial converter, pull BOOT0 pin (PF4) to VCC (or press and hold the BOOT button, if your board has one), then connect the converter to your USB port. BOOT0 pin (or BOOT button) can be released now.
-2. Connect your USB-to-serial converter to your USB port. Pull BOOT0 pin (PF4) to VCC, then pull nRST (PF2) shortly to GND (or press and hold the BOOT button, then press and release the RESET button and then release the BOOT button, if your board has them).
+- Disconnect your USB-to-serial converter, pull BOOT0 pin (PF4) to VCC (or press and hold the BOOT button, if your board has one), then connect the converter to your USB port. BOOT0 pin (or BOOT button) can be released now.
+- Connect your USB-to-serial converter to your USB port. Pull BOOT0 pin (PF4) to VCC, then pull nRST (PF2) shortly to GND (or press and hold the BOOT button, then press and release the RESET button and then release the BOOT button, if your board has them).
 
 ```
-Usage: puyaisp.py [-h] [-u] [-l] [-e] [-o] [-G] [-R] [-f FLASH]
+Usage: py32iap.py [-h] [-u] [-l] [-e] [-o] [-G] [-R] [-f FLASH]
 
 Optional arguments:
   -h, --help                show this help message and exit
   -u, --unlock              unlock chip (remove read protection)
   -l, --lock                lock chip (set read protection)
-  -e, --erase               perform a whole chip erase
+  -e, --erase               perform chip erase (implied with -f)
   -o, --rstoption           reset option bytes
   -G, --nrstgpio            make nRST pin a GPIO pin
   -R, --nrstreset           make nRST pin a RESET pin
   -f FLASH, --flash FLASH   write BIN file to flash and verify
 
 Example:
-python3 puyaisp.py -f firmware.bin
+python3 py32iap.py -f firmware.bin
 ```
 
 ## tinyupdi
