@@ -2,10 +2,10 @@
 Collection of simple ISP flash tools for various microcontrollers written in Python as single scripts.
 
 - [chprog.py - Flashing CH55x, CH32Fxxx, CH32Vxxx via embedded USB bootloader](#chprog)
-- [rvprog.py - Flashing CH32Vxxx with WCH-LinkE](#rvprog)
+- [rvprog.py - Flashing CH32Vxxx with WCH-LinkE via serial debug interface](#rvprog)
 - [py32iap.py - Flashing PY32F0xx with USB-to-serial converter via embedded USART bootloader](#py32iap)
 - [stm32iap.py - Flashing STM32G03x/04x with USB-to-serial converter via embedded USART bootloader](#stm32iap)
-- [tinyupdi.py - Flashing tinyAVR with USB-to-serial converter](#tinyupdi)
+- [tinyupdi.py - Flashing tinyAVR with USB-to-serial converter via UPDI](#tinyupdi)
 
 In order for these tools to work, Python3 must be installed on your system. To do this, follow these [instructions](https://www.pythontutorial.net/getting-started/install-python/). In addition [PyUSB](https://github.com/pyusb/pyusb) and [PySerial](https://github.com/pyserial/pyserial) must be installed. On Linux (Debian-based), all of this can be done with the following commands:
 
