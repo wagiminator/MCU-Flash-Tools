@@ -4,6 +4,7 @@ Collection of simple ISP flash tools for various microcontrollers written in Pyt
 - [chprog.py - Flashing CH55x, CH32Fxxx, CH32Vxxx via embedded USB bootloader](#chprog)
 - [rvprog.py - Flashing CH32Vxxx with WCH-LinkE](#rvprog)
 - [py32iap.py - Flashing PY32F0xx with USB-to-serial converter via embedded USART bootloader](#py32iap)
+- [stm32iap.py - Flashing STM32G03x/04x with USB-to-serial converter via embedded USART bootloader](#stm32iap)
 - [tinyupdi.py - Flashing tinyAVR with USB-to-serial converter](#tinyupdi)
 
 In order for these tools to work, Python3 must be installed on your system. To do this, follow these [instructions](https://www.pythontutorial.net/getting-started/install-python/). In addition [PyUSB](https://github.com/pyusb/pyusb) and [PySerial](https://github.com/pyserial/pyserial) must be installed. On Linux (Debian-based), all of this can be done with the following commands:
@@ -131,6 +132,47 @@ Example:
 python3 py32iap.py -f firmware.bin
 ```
 
+## stm32iap
+### Description
+With this tool, STM32G03x/04x (and maybe other STM32) microcontrollers can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded bootloader.
+
+### Preparations
+If necessary, a driver for the USB-to-serial converter used must be installed.
+
+### Usage
+Connect your USB-to-serial converter to your STM32G03x/04x MCU as follows:
+
+```
+USB2SERIAL      STM32G03x/04x
++--------+      +------------+
+|     RXD| <--- |PA2 or PA9  |
+|     TXD| ---> |PA3 or PA10 |
+|     VDD| ---> |VDD         |
+|     GND| ---> |GND         |
++--------+      +------------+
+```
+
+Set your MCU to boot mode by using ONE of the following methods:
+- Disconnect your USB-to-serial converter, pull BOOT0 pin (PA14) to VCC (or press and hold the BOOT button, if your board has one), then connect the converter to your USB port. BOOT0 pin (or BOOT button) can be released now.
+- Connect your USB-to-serial converter to your USB port. Pull BOOT0 pin (PA14) to VCC, then pull nRST shortly to GND (or press and hold the BOOT button, then press and release the RESET button and then release the BOOT button, if your board has them).
+
+On the STM32G03x/04x, the BOOT0 pin is disabled by default. As soon as the chip is brand new and/or the main flash memory is deleted, this is not a problem, the embedded bootloader will automatically start. Using this stm32iap tool will automatically activate the BOOT0 pin so that it can also be used in the following. However, if the chip has already been written to before using a different software tool, it is likely that the bootloader can no longer be activated via the BOOT0 pin. In this case, the bit nBOOT_SEL in the User Option Bytes must be deleted (set to 0) using an SWD programmer (e.g. ST-Link) and appropriate software.
+
+```
+Usage: stm32iap.py [-h] [-u] [-l] [-e] [-o] [-f FLASH]
+
+Optional arguments:
+  -h, --help                show this help message and exit
+  -u, --unlock              unlock chip (remove read protection)
+  -l, --lock                lock chip (set read protection)
+  -e, --erase               perform chip erase (implied with -f)
+  -o, --rstoption           reset option bytes
+  -f FLASH, --flash FLASH   write BIN file to flash and verify
+
+Example:
+python3 stm32iap.py -f firmware.bin
+```
+
 ## tinyupdi
 ### Description
 This tool allows tinyAVR series 0, 1, and 2 microcontrollers to be programmed using a USB-to-serial converter connected in a special way to the UPDI pin (also called SerialUPDI). More information can be found [here](https://github.com/SpenceKonde/AVR-Guidance/blob/master/UPDI/jtag2updi.md).
@@ -139,7 +181,21 @@ This tool allows tinyAVR series 0, 1, and 2 microcontrollers to be programmed us
 If necessary, a driver for the USB-to-serial converter used must be installed.
 
 ### Usage
-Connect the USB-to-serial converter via USB to the PC and via the circuit described in the link above to the UPDI pin of the microcontroller. Alternatively, a pre-assembled [SerialUPDI programmer](https://github.com/wagiminator/AVR-Programmer) can be used.
+Connect the USB-to-serial converter via USB to the PC and via the circuit described below to the UPDI pin of the microcontroller.
+
+```
+USB2SERIAL                    tinyAVR
++--------+                    +-----+
+|     RXD| <------------+---> |UPDI |
+|        |              |     |     |
+|     TXD| ---|1kOhm|---+     |     |
+|        |                    |     |
+|     VDD| -----------------> |VDD  |
+|     GND| -----------------> |GND  |
++--------+                    +-----+
+```
+
+Alternatively, a pre-assembled [SerialUPDI programmer](https://github.com/wagiminator/AVR-Programmer) can be used.
 
 ```
 Usage: tinyupdi.py [-h] [-d DEVICE] [-e] [-f FLASH] [-fs [FUSES [FUSES ...]]]
