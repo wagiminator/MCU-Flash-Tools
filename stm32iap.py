@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   stm32iap - IAP Programming Tool for STM32G03x/04x Microcontrollers
-# Version:   v0.1
+# Version:   v0.2
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -40,10 +40,7 @@
 #        VCC ---> VCC
 #        GND ---> GND
 #
-# Set your MCU to boot mode by using ONE of the following methods:
-# - Disconnect your USB-to-serial converter, pull BOOT0 pin (PA14) to VCC (or press
-#   and hold the BOOT button, if your board has one), then connect the converter to
-#   your USB port. BOOT0 pin (or BOOT button) can be released now.
+# Set your MCU to boot mode by using the following method:
 # - Connect your USB-to-serial converter to your USB port. Pull BOOT0 pin (PA14)
 #   to VCC, then pull nRST shortly to GND (or press and hold the BOOT button,
 #   then press and release the RESET button and then release the BOOT button, if
@@ -77,11 +74,13 @@ def _main():
     parser.add_argument('-l', '--lock',     action='store_true', help='lock chip (set read protection)')
     parser.add_argument('-e', '--erase',    action='store_true', help='perform a chip erase (implied with -f)')
     parser.add_argument('-o', '--rstoption',action='store_true', help='reset option bytes')
+    parser.add_argument('-G', '--nrstgpio', action='store_true', help='make nRST pin a GPIO pin')
+    parser.add_argument('-R', '--nrstreset',action='store_true', help='make nRST pin a RESET pin')
     parser.add_argument('-f', '--flash',    help='write BIN file to flash and verify')
     args = parser.parse_args(sys.argv[1:])
 
     # Check arguments
-    if not any( (args.rstoption, args.unlock, args.lock, args.erase, args.flash) ):
+    if not any( (args.rstoption, args.unlock, args.lock, args.erase, args.nrstgpio, args.nrstreset, args.flash) ):
         print('No arguments - no action!')
         sys.exit(0)
 
@@ -117,7 +116,7 @@ def _main():
         # Read option bytes and check, if chip is locked
         print('Reading OPTION bytes ...')
         isp.readoption()
-        print('SUCCESS: User OPTION bytes: 0x%08x.' % isp.useroption)
+        print('SUCCESS: User OPTION bytes: 0x%08x.' % int.from_bytes(isp.option[:4], byteorder='little'))
 
         # Perform chip erase
         if (args.erase) or (args.flash is not None):
@@ -134,18 +133,25 @@ def _main():
             isp.verifyflash(ST_CODE_ADDR, data)
             print('SUCCESS:', len(data), 'bytes written and verified.')
 
-        # Manipulate OPTION bytes
-        if isp.pid == ST_CHIP_PID and any( (args.rstoption, args.lock, isp.checkbootpin()) ):
+        # Manipulate OPTION bytes (only for identified chips)
+        if isp.pid == ST_CHIP_PID and any( (args.rstoption, args.nrstgpio, args.nrstreset, args.lock, isp.checkbootpin()) ):
             if args.rstoption:
                 print('Setting OPTION bytes to default values ...')
                 isp.resetoption()
+            if args.nrstgpio:
+                print('Setting nRST pin as GPIO in OPTION bytes ...')
+                print('INFO: This feature is locked to maintain bootloader access.')
+                #isp.nrst2gpio()
+            if args.nrstreset:
+                print('Setting nRST pin as RESET in OPTION bytes ...')
+                isp.nrst2reset()
             if args.lock:
                 print('Setting read protection in OPTION bytes...')
                 isp.lock()
             if isp.checkbootpin():
                 print('Enabling BOOT0 pin in OPTION bytes ...')
                 isp.enablebootpin()
-            print('Writing OPTION bytes ...')
+            print('Writing new OPTION bytes: 0x%08x ...' % int.from_bytes(isp.option[:4], byteorder='little'))
             isp.writeoption()
             print('SUCCESS: OPTION bytes written.')
             isp.close()
@@ -212,12 +218,6 @@ class Programmer(Serial):
 
     #--------------------------------------------------------------------------------
 
-    # Unlock (clear) chip and reset
-    def unlock(self):
-        self.sendcommand(ST_CMD_R_UNLOCK)
-        if not self.checkreply():
-            raise Exception('Failed to unlock chip')
-
     # Read info stream
     def readinfostream(self, command):
         self.sendcommand(command)
@@ -243,10 +243,11 @@ class Programmer(Serial):
             self.option = list(self.readflash(ST_OPTION_ADDR, 8))
         except:
             raise Exception('Chip is locked')
-        self.useroption = int.from_bytes(self.option[:4], byteorder='little')
 
     # Write OPTION bytes
     def writeoption(self):
+        for x in range(4):
+            self.option[x+4] = self.option[x] ^ 0xff
         self.writeflash(ST_OPTION_ADDR, self.option)
 
     # Reset OPTION bytes
@@ -256,21 +257,33 @@ class Programmer(Serial):
     # Set read protection in OPTION bytes
     def lock(self):
         self.option[0] = 0x55
-        self.option[4] = 0xaa
 
-    # Enable BOOT0 pin (nBOOT_SEL = 0)
+    # Set nRST pin as GPIO in OPTION bytes (NRST_MODE = 0b10)
+    def nrst2gpio(self):
+        self.option[3] = (self.option[3] & 0b11100111) | 0b00010000
+
+    # Set nRST pin as RESET in OPTION bytes (NRST_MODE = 0b11)
+    def nrst2reset(self):
+        self.option[3] = (self.option[3] & 0b11100111) | 0b00011000
+
+    # Enable BOOT0 pin in OPTION bytes (nBOOT_SEL = 0)
     def enablebootpin(self):
-        self.option[3] = 0xde
-        self.option[7] = 0x21
+        self.option[3] = (self.option[3] & 0b11111000) | 0b00000110
 
-    # Disable BOOT0 pin (nBOOT_SEL = 1)
-    def disablebootpin(self):
-        self.option[3] = 0xdf
-        self.option[7] = 0x20
-
-    # Check if BOOT0 pin ist disabled
+    # Check if BOOT0 pin ist disabled in OPTION bytes
     def checkbootpin(self):
         return ((self.option[3] & 0x01) == 0x01)
+
+    # Unlock (clear) chip and reset
+    def unlock(self):
+        self.sendcommand(ST_CMD_R_UNLOCK)
+        if not self.checkreply():
+            raise Exception('Failed to unlock chip')
+
+    # Start firmware
+    def run(self):
+        self.sendcommand(ST_CMD_GO)
+        self.sendaddress(ST_CODE_ADDR)
 
     #--------------------------------------------------------------------------------
 
@@ -328,17 +341,6 @@ class Programmer(Serial):
             data += b'\xff' * (pagesize - (len(data) % pagesize))
         return data
 
-    #--------------------------------------------------------------------------------
-
-    # Jump to address
-    def gotoaddress(self, addr):
-        self.sendcommand(ST_CMD_GO)
-        self.sendaddress(addr)
-
-    # Start firmware
-    def run(self):
-        self.gotoaddress(ST_CODE_ADDR)
-
 # ===================================================================================
 # Device Constants
 # ===================================================================================
@@ -377,7 +379,7 @@ ST_REPLY_BUSY   = 0xaa
 ST_SYNCH        = 0x7f
 
 # Default user option bytes
-ST_OPTION_DEFAULT = b'\xaa\xe1\xff\xdf\x55\x1e\x00\x20'
+ST_OPTION_DEFAULT = b'\xaa\xfe\xff\xff\x55\x01\x00\x00'
 
 # ===================================================================================
 

@@ -93,7 +93,7 @@ python3 rvprog.py -f firmware.bin
 
 ## py32iap
 ### Description
-With this tool, PUYA microcontrollers of the series PY32F0xx can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded bootloader.
+With this tool, PUYA microcontrollers of the series PY32F0xx (and maybe other PY32) can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded bootloader.
 
 ### Preparations
 If necessary, a driver for the USB-to-serial converter used must be installed.
@@ -152,8 +152,7 @@ USB2SERIAL      STM32G03x/04x
 +--------+      +------------+
 ```
 
-Set your MCU to boot mode by using ONE of the following methods:
-- Disconnect your USB-to-serial converter, pull BOOT0 pin (PA14) to VCC (or press and hold the BOOT button, if your board has one), then connect the converter to your USB port. BOOT0 pin (or BOOT button) can be released now.
+Set your MCU to boot mode by using the following method:
 - Connect your USB-to-serial converter to your USB port. Pull BOOT0 pin (PA14) to VCC, then pull nRST shortly to GND (or press and hold the BOOT button, then press and release the RESET button and then release the BOOT button, if your board has them).
 
 On the STM32G03x/04x, the BOOT0 pin is disabled by default. As soon as the chip is brand new and/or the main flash memory is deleted, this is not a problem, the embedded bootloader will automatically start. Using this stm32iap tool will automatically activate the BOOT0 pin so that it can also be used in the following. However, if the chip has already been written to before using a different software tool, it is likely that the bootloader can no longer be activated via the BOOT0 pin. In this case, the bit nBOOT_SEL in the User Option Bytes must be deleted (set to 0) using an SWD programmer (e.g. ST-Link) and appropriate software.
@@ -167,6 +166,8 @@ Optional arguments:
   -l, --lock                lock chip (set read protection)
   -e, --erase               perform chip erase (implied with -f)
   -o, --rstoption           reset option bytes
+  -G, --nrstgpio            make nRST pin a GPIO pin
+  -R, --nrstreset           make nRST pin a RESET pin
   -f FLASH, --flash FLASH   write BIN file to flash and verify
 
 Example:
