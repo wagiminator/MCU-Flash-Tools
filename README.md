@@ -166,8 +166,6 @@ Optional arguments:
   -l, --lock                lock chip (set read protection)
   -e, --erase               perform chip erase (implied with -f)
   -o, --rstoption           reset option bytes
-  -G, --nrstgpio            make nRST pin a GPIO pin
-  -R, --nrstreset           make nRST pin a RESET pin
   -f FLASH, --flash FLASH   write BIN file to flash and verify
 
 Example:

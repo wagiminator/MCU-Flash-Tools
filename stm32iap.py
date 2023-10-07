@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   stm32iap - IAP Programming Tool for STM32G03x/04x Microcontrollers
-# Version:   v0.2
+# Version:   v0.3
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -74,13 +74,11 @@ def _main():
     parser.add_argument('-l', '--lock',     action='store_true', help='lock chip (set read protection)')
     parser.add_argument('-e', '--erase',    action='store_true', help='perform a chip erase (implied with -f)')
     parser.add_argument('-o', '--rstoption',action='store_true', help='reset option bytes')
-    parser.add_argument('-G', '--nrstgpio', action='store_true', help='make nRST pin a GPIO pin')
-    parser.add_argument('-R', '--nrstreset',action='store_true', help='make nRST pin a RESET pin')
     parser.add_argument('-f', '--flash',    help='write BIN file to flash and verify')
     args = parser.parse_args(sys.argv[1:])
 
     # Check arguments
-    if not any( (args.rstoption, args.unlock, args.lock, args.erase, args.nrstgpio, args.nrstreset, args.flash) ):
+    if not any( (args.rstoption, args.unlock, args.lock, args.erase, args.flash) ):
         print('No arguments - no action!')
         sys.exit(0)
 
@@ -134,17 +132,10 @@ def _main():
             print('SUCCESS:', len(data), 'bytes written and verified.')
 
         # Manipulate OPTION bytes (only for identified chips)
-        if isp.pid == ST_CHIP_PID and any( (args.rstoption, args.nrstgpio, args.nrstreset, args.lock, isp.checkbootpin()) ):
+        if isp.pid == ST_CHIP_PID and any( (args.rstoption, args.lock, isp.checkbootpin()) ):
             if args.rstoption:
                 print('Setting OPTION bytes to default values ...')
                 isp.resetoption()
-            if args.nrstgpio:
-                print('Setting nRST pin as GPIO in OPTION bytes ...')
-                print('INFO: This feature is locked to maintain bootloader access.')
-                #isp.nrst2gpio()
-            if args.nrstreset:
-                print('Setting nRST pin as RESET in OPTION bytes ...')
-                isp.nrst2reset()
             if args.lock:
                 print('Setting read protection in OPTION bytes...')
                 isp.lock()
@@ -280,10 +271,11 @@ class Programmer(Serial):
         if not self.checkreply():
             raise Exception('Failed to unlock chip')
 
-    # Start firmware
+    # Start firmware and disconnect
     def run(self):
         self.sendcommand(ST_CMD_GO)
         self.sendaddress(ST_CODE_ADDR)
+        self.close()
 
     #--------------------------------------------------------------------------------
 
