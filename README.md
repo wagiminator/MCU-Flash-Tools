@@ -1,5 +1,5 @@
 # MCU ISP Flash Tools
-Collection of simple ISP flash tools for various microcontrollers written in Python as single scripts. This makes them easy to integrate into any toolchain.
+This is a compilation of straightforward In-System Programming (ISP) flash tools for different microcontrollers, all written as individual Python scripts. Their single-script format makes them incredibly easy to integrate into any toolchain.
 
 - [chprog.py - Flashing CH55x, CH32Fxxx, CH32Vxxx via embedded USB bootloader](#chprog)
 - [rvprog.py - Flashing CH32Vxxx with WCH-LinkE via serial debug interface](#rvprog)
