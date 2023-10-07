@@ -155,7 +155,7 @@ USB2SERIAL      STM32G03x/04x
 Set your MCU to boot mode by using the following method:
 - Connect your USB-to-serial converter to your USB port. Pull BOOT0 pin (PA14) to VCC, then pull nRST shortly to GND (or press and hold the BOOT button, then press and release the RESET button and then release the BOOT button, if your board has them).
 
-On the STM32G03x/04x, the BOOT0 pin is disabled by default. As soon as the chip is brand new and/or the main flash memory is deleted, this is not a problem, the embedded bootloader will automatically start. Using this stm32iap tool will automatically activate the BOOT0 pin so that it can also be used in the following. However, if the chip has already been written to before using a different software tool, it is likely that the bootloader can no longer be activated via the BOOT0 pin. In this case, the bit nBOOT_SEL in the User Option Bytes must be deleted (set to 0) using an SWD programmer (e.g. ST-Link) and appropriate software.
+On STM32G03x/04x microcontrollers, the BOOT0 pin is initially disabled. When the chip is brand new or the main flash memory is erased, this isn't an issue as the embedded bootloader automatically kicks in. By using the stm32iap tool, the BOOT0 pin will be activated for subsequent use. However, if the chip has been previously programmed using a different software tool, the bootloader might not be accessible through the BOOT0 pin anymore. In such cases, the nBOOT_SEL bit in the User Option Bytes must be cleared (set to 0) using an SWD programmer like ST-Link and the appropriate software.
 
 ```
 Usage: stm32iap.py [-h] [-u] [-l] [-e] [-o] [-f FLASH]
