@@ -1,5 +1,5 @@
 # MCU ISP Flash Tools
-Collection of simple ISP flash tools for various microcontrollers written in Python as single scripts.
+Collection of simple ISP flash tools for various microcontrollers written in Python as single scripts. This makes them easy to integrate into any toolchain.
 
 - [chprog.py - Flashing CH55x, CH32Fxxx, CH32Vxxx via embedded USB bootloader](#chprog)
 - [rvprog.py - Flashing CH32Vxxx with WCH-LinkE via serial debug interface](#rvprog)
@@ -56,12 +56,12 @@ On Windows, if you need to you can install the WinUSB driver over the WCH interf
 To upload firmware, you should make the following connections to the WCH-LinkE (SWCLK is not present on the CH32V003 and therefore does not need to be connected):
 
 ```
-WCH-LinkE      MCU Board
+WCH-LinkE      CH32Vxxx
 +-------+      +------+
-|  SWCLK| ---> |CLK   |
-|  SWDIO| <--> |DIO   |
+|  SWCLK| ---> |SWCLK |
+|  SWDIO| <--> |SWDIO |
 |    GND| ---> |GND   |
-|    3V3| ---> |3V3   |
+|    3V3| ---> |VDD   |
 +-------+      +------+
 ```
 
@@ -144,12 +144,12 @@ Connect your USB-to-serial converter to your STM32G03x/04x MCU as follows:
 
 ```
 USB2SERIAL      STM32G03x/04x
-+--------+      +------------+
-|     RXD| <--- |PA2 or PA9  |
-|     TXD| ---> |PA3 or PA10 |
-|     VDD| ---> |VDD         |
-|     GND| ---> |GND         |
-+--------+      +------------+
++--------+      +-----------+
+|     RXD| <--- |PA2 or PA9 |
+|     TXD| ---> |PA3 or PA10|
+|     3V3| ---> |VDD (3V3)  |
+|     GND| ---> |GND        |
++--------+      +-----------+
 ```
 
 Set your MCU to boot mode by using the following method:
@@ -185,15 +185,15 @@ If necessary, a driver for the USB-to-serial converter used must be installed.
 Connect the USB-to-serial converter via USB to the PC and via the circuit described below to the UPDI pin of the microcontroller.
 
 ```
-USB2SERIAL                    tinyAVR
-+--------+                    +-----+
-|     RXD| <------------+---> |UPDI |
-|        |              |     |     |
-|     TXD| ---|1kOhm|---+     |     |
-|        |                    |     |
-|     VDD| -----------------> |VDD  |
-|     GND| -----------------> |GND  |
-+--------+                    +-----+
+USB2SERIAL                       tinyAVR
++--------+                    +-----------+
+|     RXD| <------------+---> |UPDI (PA0) |
+|        |              |     |           |
+|     TXD| ---|1kOhm|---+     |           |
+|        |                    |           |
+|     VDD| -----------------> |VDD        |
+|     GND| -----------------> |GND        |
++--------+                    +-----------+
 ```
 
 Alternatively, a pre-assembled [SerialUPDI programmer](https://github.com/wagiminator/AVR-Programmer) can be used.
