@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
-# Project:   stm32iap - IAP Programming Tool for STM32G03x/04x Microcontrollers
-# Version:   v0.3
+# Project:   puyaisp - Programming Tool for PUYA PY32F0xx Microcontrollers
+# Version:   v1.3
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -10,9 +10,8 @@
 #
 # Description:
 # ------------
-# Python tool for flashing STM32G03x/04x (and maybe other STM32) microcontrollers
+# Simple Python tool for flashing PY32F0xx (and maybe other PY32) microcontrollers
 # via USB-to-serial converter utilizing the factory built-in embedded boot loader.
-# !!! THIS TOOL IS IN AN EARLY STAGE OF DEVELOPMENT !!!
 #
 # Dependencies:
 # -------------
@@ -20,41 +19,35 @@
 #
 # Operating Instructions:
 # -----------------------
-# You need to install PySerial to use stm32iap.
+# You need to install PySerial to use puyaisp.
 # Install it via "python3 -m pip install pyserial".
 # You may need to install a driver for your USB-to-serial converter.
 #
-# On the STM32, the BOOT0 pin is disabled by default. As soon as the chip is brand 
-# new and/or the main flash memory is deleted, this is not a problem, the embedded 
-# bootloader will automatically start. Using this stm32iap tool will automatically 
-# activate the BOOT0 pin so that it can also be used in the following. However, if 
-# the chip has already been written to before using a different software tool, it 
-# is likely that the bootloader can no longer be activated via the BOOT0 pin. In 
-# this case, the bit nBOOT_SEL in the User Option Bytes must be deleted (set to 0) 
-# using an SWD programmer (e.g. ST-Link) and appropriate software.
-#
 # Connect your USB-to-serial converter to your MCU:
-# USB2SERIAL      STM32G03x/04x
-#        RXD <--- PA2 or PA9
-#        TXD ---> PA3 or PA10
+# USB2SERIAL      PY32F0xx
+#        RXD <--- PA2 or PA9  or PA14
+#        TXD ---> PA3 or PA10 or PA15
 #        VCC ---> VCC
 #        GND ---> GND
 #
-# Set your MCU to boot mode by using the following method:
-# - Connect your USB-to-serial converter to your USB port. Pull BOOT0 pin (PA14)
-#   to VCC, then pull nRST shortly to GND (or press and hold the BOOT button,
+# Set your MCU to boot mode by using ONE of the following methods:
+# - Disconnect your USB-to-serial converter, pull BOOT0 pin (PF4) to VCC (or press
+#   and hold the BOOT button, if your board has one), then connect the converter to
+#   your USB port. BOOT0 pin (or BOOT button) can be released now.
+# - Connect your USB-to-serial converter to your USB port. Pull BOOT0 pin (PF4)
+#   to VCC, then pull nRST (PF2) shortly to GND (or press and hold the BOOT button,
 #   then press and release the RESET button and then release the BOOT button, if
 #   your board has them).
 #
-# Run "python3 stm32iap.py -f firmware.bin".
+# Run "python3 puyaisp.py -f firmware.bin".
 
 # If the PID/VID of the USB-to-Serial converter is known, it can be defined here,
 # which can make the auto-detection a lot faster. If not, comment out or delete.
-#ST_VID  = '1A86'
-#ST_PID  = '7523'
+#PY_VID  = '1A86'
+#PY_PID  = '7523'
 
-# Define BAUD rate here, range: 1200 - 115200, default: 115200
-ST_BAUD = 115200
+# Define BAUD rate here, range: 4800 - 1000000, default and recommended: 115200
+PY_BAUD = 115200
 
 # Libraries
 import sys
@@ -69,16 +62,18 @@ from serial.tools.list_ports import comports
 
 def _main():
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Minimal command line interface for STM32 IAP')
+    parser = argparse.ArgumentParser(description='Minimal command line interface for PY32 IAP')
     parser.add_argument('-u', '--unlock',   action='store_true', help='unlock chip (remove read protection)')
     parser.add_argument('-l', '--lock',     action='store_true', help='lock chip (set read protection)')
-    parser.add_argument('-e', '--erase',    action='store_true', help='perform a chip erase (implied with -f)')
+    parser.add_argument('-e', '--erase',    action='store_true', help='perform chip erase (implied with -f)')
     parser.add_argument('-o', '--rstoption',action='store_true', help='reset option bytes')
+    parser.add_argument('-G', '--nrstgpio', action='store_true', help='make nRST pin a GPIO pin')
+    parser.add_argument('-R', '--nrstreset',action='store_true', help='make nRST pin a RESET pin')
     parser.add_argument('-f', '--flash',    help='write BIN file to flash and verify')
     args = parser.parse_args(sys.argv[1:])
 
     # Check arguments
-    if not any( (args.rstoption, args.unlock, args.lock, args.erase, args.flash) ):
+    if not any( (args.rstoption, args.unlock, args.lock, args.erase, args.nrstgpio, args.nrstreset, args.flash) ):
         print('No arguments - no action!')
         sys.exit(0)
 
@@ -96,10 +91,10 @@ def _main():
         # Get chip info
         print('Getting chip info ...')
         isp.readinfo()
-        if isp.pid == ST_CHIP_PID:
-            print('SUCCESS: Found STM32G03x/04x with bootloader v' + isp.verstr + '.')
+        if isp.pid == PY_CHIP_PID:
+            print('SUCCESS: Found PY32F0xx with bootloader v' + isp.verstr + '.')
         else:
-            print('WARNING: Chip with PID 0x%04x is not an STM32G03x/04x!' % isp.pid)
+            print('WARNING: Chip with PID 0x%04x is not a PY32F0xx!' % isp.pid)
 
         # Unlock chip
         if args.unlock:
@@ -114,7 +109,7 @@ def _main():
         # Read option bytes and check, if chip is locked
         print('Reading OPTION bytes ...')
         isp.readoption()
-        print('SUCCESS: User OPTION bytes: 0x%08x.' % int.from_bytes(isp.option[:4], byteorder='little'))
+        print('SUCCESS:', isp.optionstr + '.')
 
         # Perform chip erase
         if (args.erase) or (args.flash is not None):
@@ -126,23 +121,26 @@ def _main():
         if args.flash is not None:
             print('Flashing', args.flash, 'to MCU ...')
             with open(args.flash, 'rb') as f: data = f.read()
-            isp.writeflash(ST_CODE_ADDR, data)
+            isp.writeflash(PY_CODE_ADDR, data)
             print('Verifying ...')
-            isp.verifyflash(ST_CODE_ADDR, data)
+            isp.verifyflash(PY_CODE_ADDR, data)
             print('SUCCESS:', len(data), 'bytes written and verified.')
 
         # Manipulate OPTION bytes (only for identified chips)
-        if isp.pid == ST_CHIP_PID and any( (args.rstoption, args.lock, isp.checkbootpin()) ):
+        if isp.pid == PY_CHIP_PID and any( (args.rstoption, args.nrstgpio, args.nrstreset, args.lock) ):
             if args.rstoption:
                 print('Setting OPTION bytes to default values ...')
                 isp.resetoption()
+            if args.nrstgpio:
+                print('Setting nRST pin as GPIO in OPTION bytes ...')
+                isp.nrst2gpio()
+            if args.nrstreset:
+                print('Setting nRST pin as RESET in OPTION bytes ...')
+                isp.nrst2reset()
             if args.lock:
-                print('Setting read protection in OPTION bytes...')
+                print('Setting read protection in OPTION BYTES ...')
                 isp.lock()
-            if isp.checkbootpin():
-                print('Enabling BOOT0 pin in OPTION bytes ...')
-                isp.enablebootpin()
-            print('Writing new OPTION bytes: 0x%08x ...' % int.from_bytes(isp.option[:4], byteorder='little'))
+            print('Writing OPTION bytes ...')
             isp.writeoption()
             print('SUCCESS: OPTION bytes written.')
             isp.close()
@@ -163,22 +161,22 @@ def _main():
 
 class Programmer(Serial):
     def __init__(self):
-        # BAUD rate:  1200 - 115200bps (default: 115200), will be auto-detected
+        # BAUD rate:  4800 - 1000000bps (default: 115200), will be auto-detected
         # Data frame: 1 start bit, 8 data bit, 1 parity bit set to even, 1 stop bit
-        super().__init__(baudrate = ST_BAUD, parity = serial.PARITY_EVEN, timeout = 1)
+        super().__init__(baudrate = PY_BAUD, parity = serial.PARITY_EVEN, timeout = 1)
         self.identify()
 
     # Identify port of programmer and enter programming mode
     def identify(self):
         for p in comports():
-            if (('ST_VID' not in globals()) or (ST_VID in p.hwid)) and (('ST_PID' not in globals()) or (ST_PID in p.hwid)):
+            if (('PY_VID' not in globals()) or (PY_VID in p.hwid)) and (('PY_PID' not in globals()) or (PY_PID in p.hwid)):
                 self.port = p.device
                 try:
                     self.open()
                 except:
                     continue
                 self.reset_input_buffer()
-                self.write([ST_SYNCH])
+                self.write([PY_SYNCH])
                 if not self.checkreply():
                     self.close()
                     continue
@@ -205,7 +203,7 @@ class Programmer(Serial):
     # Check if device acknowledged
     def checkreply(self):
         reply = self.read(1)
-        return (len(reply) == 1 and reply[0] == ST_REPLY_ACK)
+        return (len(reply) == 1 and reply[0] == PY_REPLY_ACK)
 
     #--------------------------------------------------------------------------------
 
@@ -220,68 +218,65 @@ class Programmer(Serial):
 
     # Get chip info
     def readinfo(self):
-        self.ver    = self.readinfostream(ST_CMD_GET)[0]
+        self.ver    = self.readinfostream(PY_CMD_GET)[0]
         self.verstr = '%x.%x' % (self.ver >> 4, self.ver & 7)
-        self.pid    = int.from_bytes(self.readinfostream(ST_CMD_PID), byteorder='big')
+        self.pid    = int.from_bytes(self.readinfostream(PY_CMD_PID), byteorder='big')
 
-    # Read flash size in KB
-    def readflashsize(self):
-        return int.from_bytes(self.readflash(ST_FSIZE_ADDR, 2), byteorder='little')
+    # Read UID
+    def readuid(self):
+        return self.readflash(PY_UID_ADDR, 128)
 
     # Read OPTION bytes
     def readoption(self):
         try:
-            self.option = list(self.readflash(ST_OPTION_ADDR, 8))
+            self.option = list(self.readflash(PY_OPTION_ADDR, 16))
         except:
             raise Exception('Chip is locked')
+        self.optionstr = 'OPTR: 0x%04x, SDKR: 0x%04x, WRPR: 0x%04x' % \
+                         (( (self.option[ 0] << 8) + self.option[ 1], \
+                            (self.option[ 4] << 8) + self.option[ 5], \
+                            (self.option[12] << 8) + self.option[13] ))
 
     # Write OPTION bytes
     def writeoption(self):
-        for x in range(4):
-            self.option[x+4] = self.option[x] ^ 0xff
-        self.writeflash(ST_OPTION_ADDR, self.option)
+        self.writeflash(PY_OPTION_ADDR, self.option)
 
     # Reset OPTION bytes
     def resetoption(self):
-        self.option = list(ST_OPTION_DEFAULT)
+        self.option = list(PY_OPTION_DEFAULT)
 
     # Set read protection in OPTION bytes
     def lock(self):
-        self.option[0] = 0x55
+        self.option[0]  = 0x55
+        self.option[2]  = 0xaa
 
-    # Set nRST pin as GPIO in OPTION bytes (NRST_MODE = 0b10)
+    # Set nRST pin as GPIO in OPTION bytes
     def nrst2gpio(self):
-        self.option[3] = (self.option[3] & 0b11100111) | 0b00010000
+        self.option[1] |= 0x40
+        self.option[3] &= 0xbf
 
-    # Set nRST pin as RESET in OPTION bytes (NRST_MODE = 0b11)
+    # Set nRST pin as RESET in OPTION bytes
     def nrst2reset(self):
-        self.option[3] = (self.option[3] & 0b11100111) | 0b00011000
-
-    # Enable BOOT0 pin in OPTION bytes (nBOOT_SEL = 0)
-    def enablebootpin(self):
-        self.option[3] = (self.option[3] & 0b11111000) | 0b00000110
-
-    # Check if BOOT0 pin ist disabled in OPTION bytes
-    def checkbootpin(self):
-        return ((self.option[3] & 0x01) == 0x01)
+        self.option[1] &= 0xbf
+        self.option[3] |= 0x40
 
     # Unlock (clear) chip and reset
     def unlock(self):
-        self.sendcommand(ST_CMD_R_UNLOCK)
+        self.sendcommand(PY_CMD_R_UNLOCK)
         if not self.checkreply():
             raise Exception('Failed to unlock chip')
 
     # Start firmware and disconnect
     def run(self):
-        self.sendcommand(ST_CMD_GO)
-        self.sendaddress(ST_CODE_ADDR)
+        self.sendcommand(PY_CMD_GO)
+        self.sendaddress(PY_CODE_ADDR)
         self.close()
 
     #--------------------------------------------------------------------------------
 
     # Erase whole chip
     def erase(self):
-        self.sendcommand(ST_CMD_ERASE)
+        self.sendcommand(PY_CMD_ERASE)
         self.write(b'\xff\xff\x00')
         if not self.checkreply():
             raise Exception('Failed to erase chip')
@@ -291,8 +286,8 @@ class Programmer(Serial):
         data = bytes()
         while size > 0:
             blocksize = size
-            if blocksize > ST_PAGE_SIZE: blocksize = ST_PAGE_SIZE
-            self.sendcommand(ST_CMD_READ)
+            if blocksize > PY_BLOCKSIZE: blocksize = PY_BLOCKSIZE
+            self.sendcommand(PY_CMD_READ)
             self.sendaddress(addr)
             self.sendcommand(blocksize - 1)
             data += self.read(blocksize)
@@ -300,17 +295,17 @@ class Programmer(Serial):
             size -= blocksize
         return data
 
-    # Write to flash
+    # Write flash
     def writeflash(self, addr, data):
         size = len(data)
         while size > 0:
             blocksize = size
-            if blocksize > ST_PAGE_SIZE: blocksize = ST_PAGE_SIZE
+            if blocksize > PY_BLOCKSIZE: blocksize = PY_BLOCKSIZE
             block = data[:blocksize]
             parity = blocksize - 1
             for x in range(blocksize):
                 parity ^= block[x]
-            self.sendcommand(ST_CMD_WRITE)
+            self.sendcommand(PY_CMD_WRITE)
             self.sendaddress(addr)
             self.write([blocksize - 1])
             self.write(block)
@@ -327,51 +322,44 @@ class Programmer(Serial):
         if set(flash) != set(data):
             raise Exception('Verification failed')
 
-    # Pad data
-    def paddata(self, data, pagesize):
-        if (len(data) % pagesize) > 0:
-            data += b'\xff' * (pagesize - (len(data) % pagesize))
-        return data
-
 # ===================================================================================
 # Device Constants
 # ===================================================================================
 
 # Device and Memory constants
-ST_CHIP_PID     = 0x466
-ST_PAGE_SIZE    = 256
-ST_FLASH_ADDR   = 0x08000000
-ST_CODE_ADDR    = 0x08000000
-ST_SRAM_ADDR    = 0x20000000
-ST_BOOT_ADDR    = 0x1fff0000
-ST_OTP_ADDR     = 0x1fff7000
-ST_ENG_ADDR     = 0x1fff7500
-ST_OPTION_ADDR  = 0x1fff7800
-ST_FSIZE_ADDR   = 0x1fff75e0
+PY_CHIP_PID     = 0x440
+PY_BLOCKSIZE    = 128
+PY_FLASH_ADDR   = 0x08000000
+PY_CODE_ADDR    = 0x08000000
+PY_SRAM_ADDR    = 0x20000000
+PY_BOOT_ADDR    = 0x1fff0000
+PY_UID_ADDR     = 0x1fff0e00
+PY_OPTION_ADDR  = 0x1fff0e80
+PY_CONFIG_ADDR  = 0x1fff0f00
 
 # Command codes
-ST_CMD_GET      = 0x00
-ST_CMD_VER      = 0x01
-ST_CMD_PID      = 0x02
-ST_CMD_READ     = 0x11
-ST_CMD_WRITE    = 0x31
-ST_CMD_ERASE    = 0x44
-ST_CMD_GO       = 0x21
-ST_CMD_W_LOCK   = 0x63
-ST_CMD_W_UNLOCK = 0x73
-ST_CMD_R_LOCK   = 0x82
-ST_CMD_R_UNLOCK = 0x92
+PY_CMD_GET      = 0x00
+PY_CMD_VER      = 0x01
+PY_CMD_PID      = 0x02
+PY_CMD_READ     = 0x11
+PY_CMD_WRITE    = 0x31
+PY_CMD_ERASE    = 0x44
+PY_CMD_GO       = 0x21
+PY_CMD_W_LOCK   = 0x63
+PY_CMD_W_UNLOCK = 0x73
+PY_CMD_R_LOCK   = 0x82
+PY_CMD_R_UNLOCK = 0x92
 
 # Reply codes
-ST_REPLY_ACK    = 0x79
-ST_REPLY_NACK   = 0x1f
-ST_REPLY_BUSY   = 0xaa
+PY_REPLY_ACK    = 0x79
+PY_REPLY_NACK   = 0x1f
+PY_REPLY_BUSY   = 0xaa
 
 # Other codes
-ST_SYNCH        = 0x7f
+PY_SYNCH        = 0x7f
 
-# Default user option bytes
-ST_OPTION_DEFAULT = b'\xaa\xfe\xff\xff\x55\x01\x00\x00'
+# Default option bytes
+PY_OPTION_DEFAULT = b'\xaa\xbe\x55\x41\xff\x00\x00\xff\xff\xff\xff\xff\xff\xff\x00\x00'
 
 # ===================================================================================
 

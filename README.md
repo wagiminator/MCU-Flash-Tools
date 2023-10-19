@@ -3,8 +3,8 @@ This is a compilation of straightforward In-System Programming (ISP) flash tools
 
 - [chprog.py - Flashing CH55x, CH32Fxxx, CH32Vxxx via embedded USB bootloader](#chprog)
 - [rvprog.py - Flashing CH32Vxxx with WCH-LinkE via serial debug interface](#rvprog)
-- [py32iap.py - Flashing PY32F0xx with USB-to-serial converter via embedded USART bootloader](#py32iap)
-- [stm32iap.py - Flashing STM32G03x/04x with USB-to-serial converter via embedded USART bootloader](#stm32iap)
+- [puyaisp.py - Flashing PY32F0xx with USB-to-serial converter via embedded USART bootloader](#puyaisp)
+- [stm32isp.py - Flashing STM32G03x/04x with USB-to-serial converter via embedded USART bootloader](#stm32isp)
 - [tinyupdi.py - Flashing tinyAVR with USB-to-serial converter via UPDI](#tinyupdi)
 
 In order for these tools to work, Python3 must be installed on your system. To do this, follow these [instructions](https://www.pythontutorial.net/getting-started/install-python/). In addition [PyUSB](https://github.com/pyusb/pyusb) and [PySerial](https://github.com/pyserial/pyserial) must be installed. On Linux (Debian-based), all of this can be done with the following commands:
@@ -91,7 +91,7 @@ Example:
 python3 rvprog.py -f firmware.bin
 ```
 
-## py32iap
+## puyaisp
 ### Description
 With this tool, PUYA microcontrollers of the series PY32F0xx (and maybe other PY32) can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded bootloader.
 
@@ -116,7 +116,7 @@ Set your MCU to boot mode by using ONE of the following methods:
 - Connect your USB-to-serial converter to your USB port. Pull BOOT0 pin (PF4) to VCC, then pull nRST (PF2) shortly to GND (or press and hold the BOOT button, then press and release the RESET button and then release the BOOT button, if your board has them).
 
 ```
-Usage: py32iap.py [-h] [-u] [-l] [-e] [-o] [-G] [-R] [-f FLASH]
+Usage: puyaisp.py [-h] [-u] [-l] [-e] [-o] [-G] [-R] [-f FLASH]
 
 Optional arguments:
   -h, --help                show this help message and exit
@@ -129,10 +129,10 @@ Optional arguments:
   -f FLASH, --flash FLASH   write BIN file to flash and verify
 
 Example:
-python3 py32iap.py -f firmware.bin
+python3 puyaisp.py -f firmware.bin
 ```
 
-## stm32iap
+## stm32isp
 ### Description
 With this tool, STM32G03x/04x (and maybe other STM32) microcontrollers can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded bootloader.
 
@@ -155,10 +155,10 @@ USB2SERIAL      STM32G03x/04x
 Set your MCU to boot mode by using the following method:
 - Connect your USB-to-serial converter to your USB port. Pull BOOT0 pin (PA14) to VCC, then pull nRST shortly to GND (or press and hold the BOOT button, then press and release the RESET button and then release the BOOT button, if your board has them).
 
-On STM32G03x/04x microcontrollers, the BOOT0 pin is initially disabled. When the chip is brand new or the main flash memory is erased, this isn't an issue as the embedded bootloader automatically kicks in. By using the stm32iap tool, the BOOT0 pin will be activated for subsequent use. However, if the chip has been previously programmed using a different software tool, the bootloader might not be accessible through the BOOT0 pin anymore. In such cases, the nBOOT_SEL bit in the User Option Bytes must be cleared (set to 0) using an SWD programmer like ST-Link and the appropriate software.
+On STM32G03x/04x microcontrollers, the BOOT0 pin is initially disabled. When the chip is brand new or the main flash memory is erased, this isn't an issue as the embedded bootloader automatically kicks in. By using the stm32isp tool, the BOOT0 pin will be activated for subsequent use. However, if the chip has been previously programmed using a different software tool, the bootloader might not be accessible through the BOOT0 pin anymore. In such cases, the nBOOT_SEL bit in the User Option Bytes must be cleared (set to 0) using an SWD programmer like ST-Link and the appropriate software.
 
 ```
-Usage: stm32iap.py [-h] [-u] [-l] [-e] [-o] [-f FLASH]
+Usage: stm32isp.py [-h] [-u] [-l] [-e] [-o] [-f FLASH]
 
 Optional arguments:
   -h, --help                show this help message and exit
@@ -169,7 +169,7 @@ Optional arguments:
   -f FLASH, --flash FLASH   write BIN file to flash and verify
 
 Example:
-python3 stm32iap.py -f firmware.bin
+python3 stm32isp.py -f firmware.bin
 ```
 
 ## tinyupdi
