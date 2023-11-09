@@ -4,7 +4,7 @@ This is a compilation of straightforward In-System Programming (ISP) flash tools
 - [chprog.py - Flashing CH55x, CH32Fxxx, CH32Vxxx via embedded USB bootloader](#chprog)
 - [rvprog.py - Flashing CH32Vxxx with WCH-LinkE via serial debug interface](#rvprog)
 - [puyaisp.py - Flashing PY32F0xx with USB-to-serial converter via embedded USART bootloader](#puyaisp)
-- [stm32isp.py - Flashing STM32G03x/04x with USB-to-serial converter via embedded USART bootloader](#stm32isp)
+- [stm32isp.py - Flashing entry-level STM32 with USB-to-serial converter via embedded USART bootloader](#stm32isp)
 - [tinyupdi.py - Flashing tinyAVR with USB-to-serial converter via UPDI](#tinyupdi)
 
 In order for these tools to work, Python3 must be installed on your system. To do this, follow these [instructions](https://www.pythontutorial.net/getting-started/install-python/). In addition [PyUSB](https://github.com/pyusb/pyusb) and [PySerial](https://github.com/pyserial/pyserial) must be installed. On Linux (Debian-based), all of this can be done with the following commands:
@@ -134,38 +134,57 @@ python3 puyaisp.py -f firmware.bin
 
 ## stm32isp
 ### Description
-With this tool, STM32G03x/04x (and maybe other STM32) microcontrollers can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded bootloader.
+With this tool, some entry-level STM32 microcontrollers can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded bootloader. It currently supports the following devices:
+- STM32F03xx4/6
+- STM32G03x/04x
+- STM32L01x/02x
 
 ### Preparations
 If necessary, a driver for the USB-to-serial converter used must be installed.
 
 ### Usage
-Connect your USB-to-serial converter to your STM32G03x/04x MCU as follows:
+Connect your USB-to-serial converter to your STM32 MCU as follows:
 
 ```
+USB2SERIAL      STM32F03xx4/6
++--------+      +------------+
+|     RXD| <--- |PA9  or PA14|
+|     TXD| ---> |PA10 or PA15|
+|     3V3| ---> |VDD (3V3)   |
+|     GND| ---> |GND         |
++--------+      +------------+
+
 USB2SERIAL      STM32G03x/04x
-+--------+      +-----------+
-|     RXD| <--- |PA2 or PA9 |
-|     TXD| ---> |PA3 or PA10|
-|     3V3| ---> |VDD (3V3)  |
-|     GND| ---> |GND        |
-+--------+      +-----------+
++--------+      +------------+
+|     RXD| <--- |PA2 or PA9  |
+|     TXD| ---> |PA3 or PA10 |
+|     3V3| ---> |VDD (3V3)   |
+|     GND| ---> |GND         |
++--------+      +------------+
+
+USB2SERIAL      STM32L01x/02x
++--------+      +------------+
+|     RXD| <--- |PA2 or PA9  |
+|     TXD| ---> |PA3 or PA10 |
+|     3V3| ---> |VDD (3V3)   |
+|     GND| ---> |GND         |
++--------+      +------------+
 ```
 
-Set your MCU to boot mode by using the following method:
-- Connect your USB-to-serial converter to your USB port. Pull BOOT0 pin (PA14) to VCC, then pull nRST shortly to GND (or press and hold the BOOT button, then press and release the RESET button and then release the BOOT button, if your board has them).
+Set your MCU to boot mode by using ONE of the following method:
+- Disconnect your board from all power supplies, pull BOOT0 pin to VCC (or press and hold the BOOT button if your board has one), then connect the board to your USB port. The BOOT button can be released now.
+- Connect your USB-to-serial converter to your USB port. Pull BOOT0 pin to VCC, then pull nRST shortly to GND (or press and hold the BOOT button, then press and release the RESET button and then release the BOOT button, if your board has them).
 
 On STM32G03x/04x microcontrollers, the BOOT0 pin is initially disabled. When the chip is brand new or the main flash memory is erased, this isn't an issue as the embedded bootloader automatically kicks in. By using the stm32isp tool, the BOOT0 pin will be activated for subsequent use. However, if the chip has been previously programmed using a different software tool, the bootloader might not be accessible through the BOOT0 pin anymore. In such cases, the nBOOT_SEL bit in the User Option Bytes must be cleared (set to 0) using an SWD programmer like ST-Link and the appropriate software.
 
 ```
-Usage: stm32isp.py [-h] [-u] [-l] [-e] [-o] [-f FLASH]
+Usage: stm32isp.py [-h] [-u] [-l] [-e] [-f FLASH]
 
 Optional arguments:
   -h, --help                show this help message and exit
   -u, --unlock              unlock chip (remove read protection)
   -l, --lock                lock chip (set read protection)
   -e, --erase               perform chip erase (implied with -f)
-  -o, --rstoption           reset option bytes
   -f FLASH, --flash FLASH   write BIN file to flash and verify
 
 Example:
