@@ -153,7 +153,7 @@ def _main():
 
     except Exception as ex:
         sys.stderr.write('ERROR: ' + str(ex) + '!\n')
-        isp.close()
+        isp.reset()
         sys.exit(1)
 
     print('DONE.')
@@ -179,8 +179,8 @@ class Programmer(Serial):
                     self.open()
                 except:
                     continue
-                self.reset_input_buffer()
                 self.boot()
+                self.reset_input_buffer()
                 self.write([PY_SYNCH])
                 if not self.checkreply():
                     self.close()
@@ -214,11 +214,12 @@ class Programmer(Serial):
 
     # Start bootloader
     def boot(self):
+        self.rts = False
         self.dtr = False
         self.rts = True
         time.sleep(0.01)
         self.rts = False
-        time.sleep(0.02)
+        time.sleep(0.01)
 
     # Reset and disconnect
     def reset(self):
