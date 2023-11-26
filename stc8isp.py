@@ -142,7 +142,6 @@ class Programmer(Serial):
         except:
             raise Exception('Failed to connect to USB-to-serial converter')
 
-
     # Connect to and identify MCU
     def identify(self):
         # Ping MCU and wait for power cycle
@@ -179,7 +178,6 @@ class Programmer(Serial):
 
         # Read oscillator frequency
         self.fosc = int.from_bytes(reply[1:5], byteorder='big')
-
 
     #--------------------------------------------------------------------------------
 
