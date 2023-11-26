@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   stm32isp - Programming Tool for some STM32 Microcontrollers
-# Version:   v0.5
+# Version:   v0.6
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -231,6 +231,7 @@ class Programmer(Serial):
         self.verstr = '%x.%x' % (self.ver >> 4, self.ver & 7)
         self.cmds   = list(self.info[1:])
         self.pid    = int.from_bytes(self.readinfostream(ST_CMD_PID), byteorder='big')
+        self.device = None
 
         # Find device in dictionary
         for d in DEVICES:
