@@ -4,6 +4,7 @@ This is a compilation of straightforward In-System Programming (ISP) flash tools
 - [chprog.py - Flashing CH55x, CH32Fxxx, CH32Vxxx via embedded USB bootloader](#chprog)
 - [rvprog.py - Flashing CH32Vxxx with WCH-LinkE via serial debug interface](#rvprog)
 - [puyaisp.py - Flashing PY32F0xx with USB-to-serial converter via embedded USART bootloader](#puyaisp)
+- [stc8isp.py - Flashing STC8G/8H with USB-to-serial converter via embedded USART bootloader](#stc8isp)
 - [stm32isp.py - Flashing entry-level STM32 with USB-to-serial converter via embedded USART bootloader](#stm32isp)
 - [tinyupdi.py - Flashing tinyAVR with USB-to-serial converter via UPDI](#tinyupdi)
 
@@ -132,6 +133,31 @@ Optional arguments:
 
 Example:
 python3 puyaisp.py -f firmware.bin
+```
+
+## stc8isp
+### Description
+With this tool, STC8G/8H microcontrollers can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded bootloader.
+
+### Preparations
+If necessary, a driver for the USB-to-serial converter used must be installed.
+
+### Usage
+- Connect your USB-to-serial converter to your MCU and to a USB port of your PC.
+- Run stc8isp.py (see below for arguments).
+- Perform a power cycle of your MCU (reconnect to power) when prompted.
+
+```
+Usage: stc8isp.py [-h] [-p PORT] [-e] [-f FLASH]
+
+Optional arguments:
+  -h, --help                show this help message and exit
+  -p PORT, --port PORT      set COM port (default: /dev/ttyUSB0)
+  -e, --erase               perform chip erase (implied with -f)
+  -f FLASH, --flash FLASH   write BIN file to flash
+
+Example:
+python3 stc8isp.py -p /dev/ttyUSB0 -f firmware.bin
 ```
 
 ## stm32isp
