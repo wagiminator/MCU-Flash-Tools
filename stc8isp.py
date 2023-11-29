@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   stc8isp - Programming Tool for STC8G/8H Microcontrollers
-# Version:   v0.1
+# Version:   v0.2
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -12,6 +12,7 @@
 # ------------
 # Simple Python tool for flashing STC8G/8H microcontrollers via USB-to-serial 
 # converter utilizing the factory built-in embedded boot loader.
+# !!! THIS TOOL IS IN AN EARLY STAGE OF DEVELOPMENT !!!
 #
 # Dependencies:
 # -------------
@@ -23,7 +24,13 @@
 # Install it via "python3 -m pip install pyserial".
 # You may need to install a driver for your USB-to-serial converter.
 #
-# Connect your USB-to-serial converter to your MCU and to a USB port of your PC.
+# Connect your USB-to-serial converter to your MCU:
+# USB2SERIAL         STC8G/8H
+#        VCC --/ --> VCC        interruptible (for power cycle)
+#        RXD --|R|-- P3.1       resistor (100R - 1000R)
+#        TXD --|<|-- P3.0       diode (e.g. 1N5819)
+#        GND ------- GND        common ground
+#
 # Run "python3 stc8isp.py -p /dev/ttyUSB0 -f firmware.bin".
 # Perform a power cycle of your MCU (reconnect to power) when prompted.
 
@@ -81,8 +88,8 @@ def _main():
     try:
         # Connect to and identify MCU
         print('Waiting for MCU power cycle ...')
-        isp.identify()
-        print('SUCCESS: Found', isp.chipname, 'version', isp.chipverstr + '.')
+        isp.connect()
+        print('SUCCESS: Found', isp.chipname, 'version', isp.chipverstr, '@', isp.foscstr + '.')
 
         # Set BAUD rate
         print('Setting BAUD rate ...')
@@ -105,7 +112,7 @@ def _main():
             print('SUCCESS:', len(data), 'bytes written.')
 
         # Close connection
-        isp.close()
+        isp.disconnect()
 
     except Exception as ex:
         sys.stderr.write('ERROR: ' + str(ex) + '!\n')
@@ -143,8 +150,8 @@ class Programmer(Serial):
             raise Exception('Failed to connect to USB-to-serial converter')
 
     # Connect to and identify MCU
-    def identify(self):
-        # Ping MCU and wait for power cycle
+    def connect(self):
+        # Ping MCU, wait for power cycle, read info bytes
         self.reset_input_buffer()
         waitcounter = STC_WAIT * 100
         reply = None
@@ -152,11 +159,12 @@ class Programmer(Serial):
             self.write([STC_SYNCH])
             reply = self.receive()
             waitcounter -= 1
-        if reply is None or len(reply) < 23:
-            self.close()
+        if waitcounter == 0:
             raise Exception('Timeout, failed to connect to MCU')
+        if reply is None or len(reply) < 42 or reply[0] != STC_RPL_INFO:
+            raise Exception('Invalid response from MCU')
 
-        # Read chip ID
+        # Get chip ID
         self.chipid = int.from_bytes(reply[20:22], byteorder='big')
         
         # Find chip in dictionary
@@ -169,15 +177,24 @@ class Programmer(Serial):
         self.chipname   = self.device['name']
         self.flash_size = self.device['flash_size']
 
-        # Read chip version
+        # Get chip version
         self.chipversion  = reply[17]
         self.chipstepping = reply[18]
         self.chipminor    = reply[22]
         self.chipverstr   = '%d.%d.%d%c' % (self.chipversion >> 4, self.chipversion & 0x0f, \
                                             self.chipminor & 0x0f, self.chipstepping)
 
-        # Read oscillator frequency
+        # Get oscillator frequency
         self.fosc = int.from_bytes(reply[1:5], byteorder='big')
+        if self.fosc == 0xffffffff:
+            self.foscstr = 'untrimmed frequency'
+        else:
+            self.foscstr = str(self.fosc / 1000000) + 'MHz'
+
+    # Disconnect from MCU and USB-to-serial converter
+    def disconnect(self):
+        self.transmit([STC_CMD_EXIT])
+        self.close()
 
     #--------------------------------------------------------------------------------
 
@@ -193,10 +210,6 @@ class Programmer(Serial):
         block += parity.to_bytes(2, byteorder='big')
         block += [STC_SUFFIX]
         self.write(block)
-        reply = self.receive()
-        if reply is None or len(reply) == 0:
-            raise Exception('Invalid response from MCU')
-        return reply
 
     # Receive data block
     def receive(self):
@@ -207,79 +220,100 @@ class Programmer(Serial):
         reply = self.read(2)
         if len(reply) != 2 or reply[0] != (STC_PREFIX ^ 0xff) or reply[1] != STC_RX_CODE:
             raise Exception('Invalid data prefix from MCU')
-        size   = int.from_bytes(self.read(2), byteorder='big')
-        data   = self.read(size - 6)
+        size = int.from_bytes(self.read(2), byteorder='big')
+        if size < 7:
+            raise Exception('Invalid data size from MCU')
+        data = self.read(size - 6)
+        if len(data) != size - 6:
+            raise Exception('Missing data from MCU')
         check  = int.from_bytes(self.read(2), byteorder='big')
         suffix = self.read(1)[0]
+        if suffix != STC_SUFFIX:
+            raise Exception('Invalid data suffix from MCU')
         parity = STC_RX_CODE + (size >> 8) + (size & 0xff)
         for x in range(len(data)):
             parity += data[x]
         if (parity & 0xffff) != check:
             raise Exception('Invalid data checksum from MCU')
-        if suffix != STC_SUFFIX:
-            raise Exception('Invalid data suffix from MCU')
         return data
 
     #--------------------------------------------------------------------------------
 
     # Set BAUD rate
     def setbaud(self):
-        count  = 65536 - (STC_FUSER // (4 * STC_BAUD))
-        block  = [STC_CMD_BAUD_SET]
-        block += [self.fosc & 0xff]
-        block += [0x40]
+        count  = 65536 - (STC_PROG_FREQ // (4 * STC_BAUD))
+        block  = [STC_CMD_BAUD_SET, self.fosc & 0xff, 0x40]
         block += count.to_bytes(2, byteorder='big')
         block += [0x00, 0x00, 0x97]
-        reply  = self.transmit(block)
-        if reply[0] != STC_CMD_BAUD_SET:
+        self.transmit(block)
+        reply = self.receive()
+        if reply is None or reply[0] != STC_CMD_BAUD_SET:
             raise Exception('Failed to set BAUD rate')
 
     # Check BAUD rate setting
     def checkbaud(self):
         if self.chipversion < 0x72:
-            reply = self.transmit([STC_CMD_BAUD_CHECK])
+            self.transmit([STC_CMD_BAUD_CHECK])
         else:
-            reply = self.transmit([STC_CMD_BAUD_CHECK, 0, 0, STC_BREAK, STC_BREAK ^ 0xff])
-        if reply[0] != STC_CMD_BAUD_CHECK:
-            raise Exception('BAUD rate check failed')
+            self.transmit([STC_CMD_BAUD_CHECK, 0, 0, STC_BREAK, STC_BREAK ^ 0xff])
+        reply = self.receive()
+        if reply is None or reply[0] != STC_CMD_BAUD_CHECK:
+            raise Exception('Failed to check BAUD rate')
 
     #--------------------------------------------------------------------------------
 
     # Erase flash
     def erase(self):
-        reply = self.transmit([STC_CMD_ERASE, 0, 0, STC_BREAK, STC_BREAK ^ 0xff])
-        if reply[0] != STC_CMD_ERASE:
+        self.transmit([STC_CMD_ERASE, 0, 0, STC_BREAK, STC_BREAK ^ 0xff])
+        reply = self.receive()
+        if reply is None or reply[0] != STC_CMD_ERASE:
             raise Exception('Failed to erase flash')
 
     # Write data to flash
     def writeflash(self, addr, data):
-        if len(data) > (self.flash_size - addr):
+        size = len(data)
+        if size > (self.flash_size - addr):
             raise Exception('Not enough memory')
-        block  = [STC_CMD_WRITE]
-        block += addr.to_bytes(2, byteorder='big')
-        block += [STC_BREAK, STC_BREAK ^ 0xff]
-        block += data
-        reply  = self.transmit(block)
-        if reply[0] != 0x02:
-            raise Exception('Failed to write to flash')
+        cmd = STC_CMD_WRITE
+        while size > 0:
+            blocksize = min(size, STC_PAGE_SIZE)
+            block  = [cmd]
+            block += addr.to_bytes(2, byteorder='big')
+            block += [STC_BREAK, STC_BREAK ^ 0xff]
+            block += data[:blocksize]
+            self.transmit(block)
+            reply = self.receive()
+            if reply is None or reply[0] != STC_CMD_WRITE_CONT:
+                raise Exception('Failed to write to address 0x%04x' % addr)
+            cmd   = STC_CMD_WRITE_CONT
+            data  = data[blocksize:]
+            addr += blocksize
+            size -= blocksize
 
 # ===================================================================================
 # Device Constants
 # ===================================================================================
 
-STC_FUSER          = 24000000
+STC_PROG_FREQ      = 24000000
+STC_PAGE_SIZE      = 128
 
 STC_SYNCH          = 0x7f
+STC_TRIM           = 0x66
 STC_PREFIX         = 0x46
 STC_BREAK          = 0x5a
 STC_SUFFIX         = 0x16
 STC_TX_CODE        = 0x6a
 STC_RX_CODE        = 0x68
+STC_RPL_INFO       = 0x50
 
+STC_CMD_TRIM       = 0x00
 STC_CMD_BAUD_SET   = 0x01
 STC_CMD_BAUD_CHECK = 0x05
 STC_CMD_ERASE      = 0x03
+STC_CMD_OPTIONS    = 0x04
 STC_CMD_WRITE      = 0x22
+STC_CMD_WRITE_CONT = 0x02
+STC_CMD_EXIT       = 0xff
 
 # ===================================================================================
 # Device Definitions

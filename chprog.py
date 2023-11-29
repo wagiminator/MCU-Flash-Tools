@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   chprog - USB Programming Tool for WCH Microcontrollers
-# Version:   v2.0
+# Version:   v2.1
 # Year:      2022
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -26,7 +26,7 @@
 #
 # Operating Instructions:
 # -----------------------
-# You need to install PyUSB to use chprog. Install it via "python -m pip install pyusb".
+# You need to install PyUSB to use chprog. Install it via "python3 -m pip install pyusb".
 #
 # Linux users need permission to access the device. Run:
 # echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="4348", ATTR{idProduct}=="55e0", MODE="666"' | sudo tee /etc/udev/rules.d/99-ch55x.rules
@@ -203,8 +203,7 @@ class Programmer:
         offset  = 0
         pkt_len = 0
         while rest > 0:
-            if rest >= 0x38:  pkt_len = 0x38
-            else:             pkt_len = rest
+            pkt_len = min(rest, 0x38)
             stream  = bytes((mode, pkt_len + 5, 0))
             stream += offset.to_bytes(4, byteorder='little')
             stream += (rest & 0xff).to_bytes(1, byteorder='little')

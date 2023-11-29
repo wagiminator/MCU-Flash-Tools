@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   stm32isp - Programming Tool for some STM32 Microcontrollers
-# Version:   v0.6
+# Version:   v0.7
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -320,8 +320,7 @@ class Programmer(Serial):
     def readflash(self, addr, size):
         data = bytes()
         while size > 0:
-            blocksize = size
-            if blocksize > ST_PAGE_SIZE: blocksize = ST_PAGE_SIZE
+            blocksize = min(size, ST_PAGE_SIZE)
             self.sendcommand(ST_CMD_READ)
             self.sendaddress(addr)
             self.sendcommand(blocksize - 1)
@@ -334,10 +333,9 @@ class Programmer(Serial):
     def writeflash(self, addr, data):
         size = len(data)
         while size > 0:
-            blocksize = size
-            if blocksize > ST_PAGE_SIZE: blocksize = ST_PAGE_SIZE
-            block = data[:blocksize]
-            parity = blocksize - 1
+            blocksize = min(size, ST_PAGE_SIZE)
+            block     = data[:blocksize]
+            parity    = blocksize - 1
             for x in range(blocksize):
                 parity ^= block[x]
             self.sendcommand(ST_CMD_WRITE)
