@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   stc8isp - Programming Tool for STC8G/8H Microcontrollers
-# Version:   v0.2
+# Version:   v0.3
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -31,24 +31,41 @@
 #        TXD --|<|-- P3.0       diode (e.g. 1N5819)
 #        GND ------- GND        common ground
 #
-# Run "python3 stc8isp.py -p /dev/ttyUSB0 -f firmware.bin".
+# Run "python3 stc8isp.py -p /dev/ttyUSB0 -t 24000000 -f firmware.bin".
 # Perform a power cycle of your MCU (reconnect to power) when prompted.
+
+
+# ===================================================================================
+# Software Settings
+# ===================================================================================
 
 # If the PID/VID of the USB-to-Serial converter is known, it can be defined here.
 # The specified COM port is then ignored, and all ports are automatically searched 
 # for the device. Comment the lines to ignore PID/VID.
-#STC_VID  = '1A86'
-#STC_PID  = '7523'
+#STC_VID = '1A86'
+#STC_PID = '7523'
 
 # Define the default COM port here. This will be used if no VID/PID is defined and
-# no COM port is specified within the arguments.
+# no COM port is specified within the command line arguments.
 STC_PORT = '/dev/ttyUSB0'
 
-# Define BAUD rate here, range: 2400 - 115200, default: 115200
-STC_BAUD = 115200
+# Define the default BAUD rates here. The minimum BAUD rate is used to calibrate the 
+# oscillator and should be low to achieve higher accuracy. The maximum BAUD rate is 
+# used to transfer the firmware and should be high to achieve higher speed.
+STC_BAUD_MIN = 2400
+STC_BAUD_MAX = 115200
 
 # Define time to wait for power cycle in seconds, default: 10
 STC_WAIT = 10
+
+# Define minimum and maximum IRC frequency in Hz, that can be specified by the
+# respective command line argument. Expanding the limit values can lead to problems!
+STC_FCPU_MIN =   128000
+STC_FCPU_MAX = 36000000
+
+# ===================================================================================
+# Libraries
+# ===================================================================================
 
 # Libraries
 import sys
@@ -66,14 +83,15 @@ def _main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Minimal command line interface for stc8isp')
     parser.add_argument('-p', '--port',  default=STC_PORT, help='set COM port')
+    parser.add_argument('-t', '--trim',  help='trim IRC to frequency in Hz')
     parser.add_argument('-e', '--erase', action='store_true', help='perform chip erase (implied with -f)')
     parser.add_argument('-f', '--flash', help='write BIN file to flash')
     args = parser.parse_args(sys.argv[1:])
 
-    # Check arguments
-    if not any( (args.erase, args.flash) ):
-        print('No arguments - no action!')
-        sys.exit(0)
+    # Checking command line arguments
+    if (args.trim is not None) and (int(args.trim) < STC_FCPU_MIN or int(args.trim) > STC_FCPU_MAX):
+        sys.stderr.write('ERROR: Trim value out of range (%d - %d)!\n' % (STC_FCPU_MIN, STC_FCPU_MAX))
+        sys.exit(1)
 
     # Establish connection to USB-to-serial converter
     try:
@@ -89,27 +107,37 @@ def _main():
         # Connect to and identify MCU
         print('Waiting for MCU power cycle ...')
         isp.connect()
-        print('SUCCESS: Found', isp.chipname, 'version', isp.chipverstr, '@', isp.foscstr + '.')
+        print('SUCCESS: Found %s v%s @ %s.' % (isp.chipname, isp.chipverstr, isp.foscstr))
 
-        # Set BAUD rate
-        print('Setting BAUD rate ...')
-        isp.setbaud()
-        time.sleep(0.01)
-        isp.checkbaud()
-        print('SUCCESS: BAUD rate set to', str(STC_BAUD) + '.')
+        # Calibrate user IRC oscillator frequency
+        if args.trim is not None:
+            print('Calibrating user IRC frequency to %s Hz ...' % args.trim)
+            isp.trim(int(args.trim))
+            print('SUCCESS: Trimmed to %d Hz (error %.2f%%).' % (isp.osc_freq, 100 * isp.osc_error))
+
+        # Switch BAUD rate
+        print('Switching BAUD rate ...')
+        isp.setbaud(STC_BAUD_MAX)
+        print('SUCCESS: BAUD rate set to %d.' % STC_BAUD_MAX)
 
         # Perform chip erase
-        if (args.erase) or (args.flash is not None):
+        if (args.erase) or (args.flash is not None) or (args.trim is not None):
             print('Performing chip erase ...')
             isp.erase()
             print('SUCCESS: Chip is erased.')
 
         # Flash binary file
         if args.flash is not None:
-            print('Flashing', args.flash, 'to MCU ...')
+            print('Flashing %s to MCU ...' % args.flash)
             with open(args.flash, 'rb') as f: data = f.read()
             isp.writeflash(0, data)
-            print('SUCCESS:', len(data), 'bytes written.')
+            print('SUCCESS: %d bytes written.' % len(data))
+
+        # Write option bytes
+        if args.trim is not None:
+            print('Writing option bytes ...')
+            isp.writeoptions()
+            print('SUCCESS: Option bytes written.')
 
         # Close connection
         isp.disconnect()
@@ -127,10 +155,9 @@ def _main():
 # ===================================================================================
 
 class Programmer(Serial):
-    def __init__(self, port):
-        # BAUD rate:  2400 - 115200bps (default: 115200), will be auto-detected
+    def __init__(self, port=STC_PORT, baud=STC_BAUD_MIN):
         # Data frame: 1 start bit, 8 data bit, 1 parity bit set to even, 1 stop bit
-        super().__init__(baudrate = STC_BAUD, parity = serial.PARITY_EVEN, timeout = 0.01)
+        super().__init__(baudrate = baud, parity = serial.PARITY_EVEN, timeout = 0.01)
 
         # Use COM port to define device
         if 'STC_VID' not in globals() or 'STC_PID' not in globals():
@@ -149,53 +176,6 @@ class Programmer(Serial):
         except:
             raise Exception('Failed to connect to USB-to-serial converter')
 
-    # Connect to and identify MCU
-    def connect(self):
-        # Ping MCU, wait for power cycle, read info bytes
-        self.reset_input_buffer()
-        waitcounter = STC_WAIT * 100
-        reply = None
-        while (waitcounter > 0) and (reply is None):
-            self.write([STC_SYNCH])
-            reply = self.receive()
-            waitcounter -= 1
-        if waitcounter == 0:
-            raise Exception('Timeout, failed to connect to MCU')
-        if reply is None or len(reply) < 42 or reply[0] != STC_RPL_INFO:
-            raise Exception('Invalid response from MCU')
-
-        # Get chip ID
-        self.chipid = int.from_bytes(reply[20:22], byteorder='big')
-        
-        # Find chip in dictionary
-        self.device = None
-        for d in DEVICES:
-            if d['id'] == self.chipid:
-                self.device = d
-        if self.device is None:
-            raise Exception('Unsupported chip (ID: 0x%04x)' % self.chipid)
-        self.chipname   = self.device['name']
-        self.flash_size = self.device['flash_size']
-
-        # Get chip version
-        self.chipversion  = reply[17]
-        self.chipstepping = reply[18]
-        self.chipminor    = reply[22]
-        self.chipverstr   = '%d.%d.%d%c' % (self.chipversion >> 4, self.chipversion & 0x0f, \
-                                            self.chipminor & 0x0f, self.chipstepping)
-
-        # Get oscillator frequency
-        self.fosc = int.from_bytes(reply[1:5], byteorder='big')
-        if self.fosc == 0xffffffff:
-            self.foscstr = 'untrimmed frequency'
-        else:
-            self.foscstr = str(self.fosc / 1000000) + 'MHz'
-
-    # Disconnect from MCU and USB-to-serial converter
-    def disconnect(self):
-        self.transmit([STC_CMD_EXIT])
-        self.close()
-
     #--------------------------------------------------------------------------------
 
     # Transmit data block
@@ -211,7 +191,7 @@ class Programmer(Serial):
         block += [STC_SUFFIX]
         self.write(block)
 
-    # Receive data block
+    # Receive and check data block
     def receive(self):
         reply = self.read(1)
         if len(reply) == 0 or reply[0] != STC_PREFIX:
@@ -237,11 +217,121 @@ class Programmer(Serial):
             raise Exception('Invalid data checksum from MCU')
         return data
 
+    # Repeat sending sync character until reply or timeout
+    def pulse(self, char, pulsetime=0.01, timeout=10):
+        counter = timeout
+        while self.in_waiting == 0:
+            self.write([char])
+            time.sleep(pulsetime)
+            counter -= pulsetime
+            if counter <= 0:
+                raise Exception('Timout waiting for response')
+
     #--------------------------------------------------------------------------------
 
-    # Set BAUD rate
-    def setbaud(self):
-        count  = 65536 - (STC_PROG_FREQ // (4 * STC_BAUD))
+    # Connect to and identify MCU
+    def connect(self):
+        # Ping MCU, wait for power cycle, read info bytes
+        self.reset_input_buffer()
+        waitcounter = STC_WAIT * 100
+        reply = None
+        while (waitcounter > 0) and (reply is None):
+            self.write([STC_CHAR_SYNC])
+            reply = self.receive()
+            waitcounter -= 1
+        if waitcounter == 0:
+            raise Exception('Timeout, failed to connect to MCU')
+        if reply is None or len(reply) < 42 or reply[0] != STC_RPL_INFO:
+            raise Exception('Invalid response from MCU')
+
+        # Get chip ID
+        self.chipid = int.from_bytes(reply[20:22], byteorder='big')
+        
+        # Find chip in dictionary
+        self.device = None
+        for d in DEVICES:
+            if d['id'] == self.chipid:
+                self.device = d
+        if self.device is None:
+            raise Exception('Unsupported chip (ID: 0x%04x)' % self.chipid)
+        self.chipname   = self.device['name']
+        self.flash_size = self.device['flash_size']
+
+        # Get chip version
+        self.chipversion  = reply[17]
+        self.chipverstr   = '%d.%d.%d%c' % (reply[17] >> 4, reply[17] & 0x0f, \
+                                            reply[22] & 0x0f, reply[18])
+
+        # Get ISP-IRC and USER-IRC oscillator frequencies
+        self.fisp = int.from_bytes(reply[13:15], byteorder='big') * self.baudrate
+        self.fosc = int.from_bytes(reply[1:5], byteorder='big')
+        if self.fosc == 0xffffffff:
+            self.foscstr = 'untrimmed frequency'
+        else:
+            self.foscstr = str(self.fosc) + ' Hz'
+
+        # Get option bytes
+        self.options = reply[9:12] + reply[15:17]
+
+    # Disconnect from MCU and USB-to-serial converter
+    def disconnect(self):
+        self.transmit([STC_CMD_EXIT])
+        self.close()
+
+    #--------------------------------------------------------------------------------
+
+    # Set and calibrate USER-IRC oscillator frequency
+    def trim(self, freq):
+        # Get global trim values
+        self.transmit(STC_BLOCK_TRIM)
+        self.pulse(STC_CHAR_TRIM)
+        reply = self.receive()
+        if reply is None or reply[0] != STC_CMD_TRIM:
+                raise Exception('Invalid responde from MCU')
+
+        # Calculate mean trim value for specified frequency
+        freq1 = int.from_bytes(reply[ 2: 4], byteorder='big') * self.baudrate
+        freq2 = int.from_bytes(reply[ 4: 6], byteorder='big') * self.baudrate
+        freq3 = int.from_bytes(reply[ 6: 8], byteorder='big') * self.baudrate
+        freq4 = int.from_bytes(reply[ 8:10], byteorder='big') * self.baudrate
+        freq5 = int.from_bytes(reply[10:12], byteorder='big') * self.baudrate
+        self.osc_div = 1
+        while freq * self.osc_div < freq1: self.osc_div += 1
+        if freq * self.osc_div < freq5:
+            self.osc_trimx = round( (freq * self.osc_div - freq1) * 
+                (STC_BLOCK_TRIM[4] - STC_BLOCK_TRIM[2]) / (freq2 - freq1) + STC_BLOCK_TRIM[2] )
+            self.osc_bandx = STC_BLOCK_TRIM[3]
+        else:
+            self.osc_trimx = round( (freq * self.osc_div - freq3) * 
+                (STC_BLOCK_TRIM[8] - STC_BLOCK_TRIM[6]) / (freq4 - freq3) + STC_BLOCK_TRIM[2] )
+            self.osc_bandx = STC_BLOCK_TRIM[7]
+
+        # Get fine tuned trim values for specified frequency
+        count = 24
+        block = [0x00, count]
+        for x in range(count):
+            block += [self.osc_trimx - 2 + (x>>2), self.osc_bandx + (x & 0x03)]
+        self.transmit(block)
+        self.pulse(STC_CHAR_TRIM)
+        reply = self.receive()
+        if reply is None or reply[0] != STC_CMD_TRIM:
+                raise Exception('Invalid responde from MCU')
+
+        # Find optimal trim value
+        best = sys.maxsize
+        for x in range(count):
+            freq1 = int.from_bytes(reply[2*x+2:2*x+4], byteorder='big') * self.baudrate
+            if abs(freq * self.osc_div - freq1) < best:
+                best = abs(freq * self.osc_div - freq1)
+                self.osc_freq  = round(freq1 / self.osc_div)
+                self.osc_trim  = self.osc_trimx - 2 + (x>>2)
+                self.osc_band  = self.osc_bandx + (x & 0x03)
+                self.osc_error = (self.osc_freq - freq) / freq
+
+    # Set/switch BAUD rate
+    def setbaud(self, baud=STC_BAUD_MAX):
+        # Set BAUD rate
+        count  = round(65536 - (self.fisp / (4 * baud)))
         block  = [STC_CMD_BAUD_SET, self.fosc & 0xff, 0x40]
         block += count.to_bytes(2, byteorder='big')
         block += [0x00, 0x00, 0x97]
@@ -249,9 +339,10 @@ class Programmer(Serial):
         reply = self.receive()
         if reply is None or reply[0] != STC_CMD_BAUD_SET:
             raise Exception('Failed to set BAUD rate')
+        self.baudrate = baud
+        time.sleep(0.01)
 
-    # Check BAUD rate setting
-    def checkbaud(self):
+        # Check BAUD rate
         if self.chipversion < 0x72:
             self.transmit([STC_CMD_BAUD_CHECK])
         else:
@@ -290,15 +381,27 @@ class Programmer(Serial):
             addr += blocksize
             size -= blocksize
 
+    # Write option bytes
+    def writeoptions(self):
+        block  = [STC_CMD_OPTIONS, 0, 0, STC_BREAK, STC_BREAK ^ 0xff]
+        block += STC_BLOCK_OPTIONS1
+        block += self.osc_freq.to_bytes(4, byteorder='big')
+        block += [self.osc_trim, self.osc_band, self.osc_div]
+        block += STC_BLOCK_OPTIONS2
+        self.transmit(block)
+        reply = self.receive()
+        if reply is None or reply[0] != STC_CMD_OPTIONS:
+            raise Exception('Failed to write option bytes')
+               
 # ===================================================================================
 # Device Constants
 # ===================================================================================
 
-STC_PROG_FREQ      = 24000000
 STC_PAGE_SIZE      = 128
 
-STC_SYNCH          = 0x7f
-STC_TRIM           = 0x66
+STC_CHAR_SYNC      = 0x7f
+STC_CHAR_TRIM      = 0x66
+
 STC_PREFIX         = 0x46
 STC_BREAK          = 0x5a
 STC_SUFFIX         = 0x16
@@ -315,8 +418,15 @@ STC_CMD_WRITE      = 0x22
 STC_CMD_WRITE_CONT = 0x02
 STC_CMD_EXIT       = 0xff
 
+STC_BLOCK_TRIM     = [0x00, 0x05, 0x02, 0x00, 0x80, 0x00, 0x00, 0x80, 
+                      0x80, 0x80, 0xfd, 0x00]
+STC_BLOCK_OPTIONS1 = [0xff, 0xff, 0xff, 0x00, 0xff, 0xff, 0x00, 0xff, 
+                      0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 
+                      0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0xff]
+STC_BLOCK_OPTIONS2 = [0xff, 0xff, 0xff, 0xff, 0xff, 0xbf, 0xbf, 0xf7, 0xff]
+
 # ===================================================================================
-# Device Definitions
+# Device Dictionary
 # ===================================================================================
 
 DEVICES = [
