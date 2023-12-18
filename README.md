@@ -5,14 +5,15 @@ This is a compilation of straightforward In-System Programming (ISP) flash tools
 - [rvprog.py - Flashing CH32Vxxx with WCH-LinkE via serial debug interface](#rvprog)
 - [puyaisp.py - Flashing PY32F0xx with USB-to-serial converter via embedded USART bootloader](#puyaisp)
 - [stc8isp.py - Flashing STC8G/8H with USB-to-serial converter via embedded USART bootloader](#stc8isp)
+- [stc8usb.py - Flashing STC8H8KxxU via embedded USB bootloader](#stc8usb)
 - [stm32isp.py - Flashing entry-level STM32 with USB-to-serial converter via embedded USART bootloader](#stm32isp)
 - [tinyupdi.py - Flashing tinyAVR with USB-to-serial converter via UPDI](#tinyupdi)
 
-In order for these tools to work, Python3 must be installed on your system. To do this, follow these [instructions](https://www.pythontutorial.net/getting-started/install-python/). In addition [PyUSB](https://github.com/pyusb/pyusb) and [PySerial](https://github.com/pyserial/pyserial) must be installed. On Linux (Debian-based), all of this can be done with the following commands:
+In order for these tools to work, Python3 must be installed on your system. To do this, follow these [instructions](https://www.pythontutorial.net/getting-started/install-python/). In addition [PyUSB](https://github.com/pyusb/pyusb), [PySerial](https://github.com/pyserial/pyserial) and [pyhidapi](https://pypi.org/project/hid/) must be installed. On Linux (Debian-based), all of this can be done with the following commands:
 
 ```
 sudo apt install python3 python3-pip
-python3 -m pip install pyusb pyserial
+python3 -m pip install pyusb pyserial hid
 ```
 
 Windows users in particular may also need to install [libusb](https://github.com/libusb/libusb).
@@ -116,8 +117,6 @@ Set your MCU to bootloader mode by using ONE of the following methods:
 - Disconnect your USB-to-serial converter, pull BOOT0 pin (PF4) to VCC (or press and hold the BOOT button, if your board has one), then connect the converter to your USB port. BOOT0 pin (or BOOT button) can be released now.
 - Connect your USB-to-serial converter to your USB port. Pull BOOT0 pin (PF4) to VCC, then pull nRST (PF2) shortly to GND (or press and hold the BOOT button, then press and release the RESET button and then release the BOOT button, if your board has them).
 
-These steps are not necessary when using a CH340X USB-to-serial converter with control lines for nRST and BOOT0. In this case, the software automatically puts the MCU into bootloader mode.
-
 ```
 Usage: puyaisp.py [-h] [-u] [-l] [-e] [-o] [-G] [-R] [-f FLASH]
 
@@ -169,6 +168,36 @@ Optional arguments:
 
 Example:
 python3 stc8isp.py -p /dev/ttyUSB0 -t 24000000 -f firmware.bin
+```
+
+## stc8usb
+## Description
+This tool allows you to flash STC8H8KxxU microcontrollers through their USB interface, using the pre-installed embedded USB bootloader.
+
+## Preparations
+Because the USB bootloader functions as a Human Interface Device (HID), there's no need to install drivers. However, Linux doesn't initially grant sufficient permissions to access the bootloader. To resolve this issue, open a terminal and execute the following commands:
+
+```
+echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="34bf", ATTR{idProduct}=="1001", MODE="666"' | sudo tee /etc/udev/rules.d/99-STC-ISP.rules
+sudo udevadm control --reload-rules
+```
+
+## Usage
+To initiate new uploads, the bootloader needs to be manually started. Begin by unplugging the board from the USB port and disconnecting all power sources. Then, press and hold the BOOT button while reconnecting the board to your PC's USB port. This action triggers the chip to enter bootloader mode. Once in this mode, you can release the BOOT button and proceed to upload new firmware via USB.
+
+If your board doesn't have a BOOT button, you'll need to short pin P3.2 to ground while connecting to achieve the same effect.
+
+```
+Usage: stc8usb.py [-h] [-t TRIM] [-e] [-f FLASH]
+
+Optional arguments:
+  -h,       --help          show this help message and exit
+  -t TRIM,  --trim TRIM     set MCU system frequency
+  -e,       --erase         perform chip erase (implied with -f)
+  -f FLASH, --flash FLASH   write BIN file to flash
+
+Example:
+python3 stc8usb.py -t 24000000 -f firmware.bin
 ```
 
 ## stm32isp
