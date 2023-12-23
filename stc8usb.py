@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   stc8usb - USB Programming Tool for STC8H8KxxU Microcontrollers
-# Version:   v0.1
+# Version:   v0.2
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -173,9 +173,6 @@ class Programmer:
             self.foscstr = 'untrimmed frequency'
         else:
             self.foscstr = str(self.fosc) + ' Hz'
-
-        # Get option bytes
-        self.options = reply[9:12] + reply[15:17]
         
         # Set BAUD (dummy)
         self.transmit([STC_CMD_BAUD_SET, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80])
@@ -299,7 +296,9 @@ STC_FREQUENCIES = [
     {'freq': 16000000, 'trim': [0xc6, 0x30,  3]},
     {'freq': 20000000, 'trim': [0x73, 0x30,  2]},
     {'freq': 24000000, 'trim': [0x48, 0x20,  1]},
+    {'freq': 27000000, 'trim': [0x7a, 0x20,  1]},
     {'freq': 30000000, 'trim': [0xb1, 0x20,  1]},
+    {'freq': 35000000, 'trim': [0x44, 0x30,  1]},
     {'freq': 40000000, 'trim': [0x73, 0x30,  1]},
     {'freq': 48000000, 'trim': [0xc6, 0x30,  1]}
 ]
