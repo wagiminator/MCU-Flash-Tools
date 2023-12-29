@@ -3,10 +3,10 @@ This is a compilation of straightforward In-System Programming (ISP) flash tools
 
 - [chprog.py - Flashing CH55x, CH32Fxxx, CH32Vxxx via embedded USB bootloader](#chprog)
 - [rvprog.py - Flashing CH32Vxxx with WCH-LinkE via serial debug interface](#rvprog)
-- [puyaisp.py - Flashing PY32F0xx with USB-to-serial converter via embedded USART bootloader](#puyaisp)
-- [stc8isp.py - Flashing STC8G/8H with USB-to-serial converter via embedded USART bootloader](#stc8isp)
+- [puyaisp.py - Flashing PY32F0xx with USB-to-serial converter via embedded UART bootloader](#puyaisp)
+- [stc8isp.py - Flashing STC8G/8H with USB-to-serial converter via embedded UART bootloader](#stc8isp)
 - [stc8usb.py - Flashing STC8H8KxxU via embedded USB bootloader](#stc8usb)
-- [stm32isp.py - Flashing entry-level STM32 with USB-to-serial converter via embedded USART bootloader](#stm32isp)
+- [stm32isp.py - Flashing entry-level STM32 with USB-to-serial converter via embedded UART bootloader](#stm32isp)
 - [tinyupdi.py - Flashing tinyAVR with USB-to-serial converter via UPDI](#tinyupdi)
 
 In order for these tools to work, Python3 must be installed on your system. To do this, follow these [instructions](https://www.pythontutorial.net/getting-started/install-python/). In addition [PyUSB](https://github.com/pyusb/pyusb), [PySerial](https://github.com/pyserial/pyserial) and [pyhidapi](https://pypi.org/project/hid/) must be installed. On Linux (Debian-based), all of this can be done with the following commands:
@@ -293,8 +293,9 @@ Optional arguments:
   -f FLASH, --flash FLASH   BIN file to flash
   -fs [FUSES [FUSES ...]], --fuses [FUSES [FUSES ...]]
                             fuses to set (syntax: fuse_nr:0xvalue)
+  -t TRIM, --trim TRIM      configure oscillator for given frequency (set fuse 2)
 Example:
-python3 tinyupdi.py -f firmware.bin -fs 2:0x01 6:0x04 8:0x00
+python3 tinyupdi.py -f firmware.bin -fs 6:0x04 7:0x00 8:0x00 -t 8000000
 ```
 
 ## Links

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   TinyUPDI - Minimal application-specific UPDI programmer based on pyupdi
-# Version:   v1.3
+# Version:   v1.4
 # Year:      2022
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -27,9 +27,9 @@
 #
 # Restrictions:
 # -------------
-# - Target MCU must be a 0, 1, or 2-series tinyAVR with 8, 14, or 20 pins
-# - Only flash and fuses can be programmed
-# - Firmware file must be a binary (not ELF or HEX!)
+# - Target MCU must be a 0, 1, or 2-series tinyAVR.
+# - Only flash and fuses can be programmed.
+# - Firmware file must be a binary (not ELF or HEX!).
 #
 # Operating Instructions:
 # -----------------------
@@ -40,8 +40,9 @@
 #   -f FLASH, --flash FLASH   BIN file to flash
 #   -fs [FUSES [FUSES ...]], --fuses [FUSES [FUSES ...]]
 #                             fuses to set (syntax: fuse_nr:0xvalue)
+#   -t TRIM, --trim TRIM      configure oscillator for given frequency (fuse 2)
 # - Example:
-#   python3 tinyupdi.py -d attiny202 -f firmware.bin -fs 2:0x01 6:0x04 8:0x00
+#   python3 tinyupdi.py -d attiny202 -f firmware.bin -fs 6:0x04 7:0x00 8:0x00 -t 8000000
 
 
 import re
@@ -73,6 +74,7 @@ def _main():
     parser.add_argument('-f', '--flash', help='BIN file to flash')
     parser.add_argument('-fs', '--fuses', action='append', nargs='*',
                         help='fuses to set (syntax: fuse_nr:0xvalue)')
+    parser.add_argument('-t', '--trim', help='configure oscillator for given frequency (fuse 2)')
     args = parser.parse_args(sys.argv[1:])
 
     # Check arguments
@@ -97,14 +99,14 @@ def _main():
     except Exception as ex:
         sys.stderr.write('ERROR: ' + str(ex) + '!\n')
         sys.exit(1)
-    print('FOUND: Programmer on port', tinyupdi.port)
+    print('SUCCESS: Found programmer on port %s.' % tinyupdi.port)
 
     # Programming the device
     try:
         # Detect target device
         print('Detecting target MCU ...')
         device = tinyupdi.detect()
-        print('FOUND:', device, 'with', tinyupdi.flash_size, 'bytes of flash')
+        print('SUCCESS: Found %s with %d bytes of flash.' % (device, tinyupdi.flash_size))
         if (args.device is not None) and (not args.device == device):
             raise Exception('Found device is not ' + args.device)
 
@@ -115,12 +117,12 @@ def _main():
 
         # Flash binary file
         if args.flash is not None:
-            print('Reading ' + args.flash + ' ...')
+            print('Flashing %s to %s ...' % (args.flash, device))
             with open(args.flash, 'rb') as f: data = f.read()
-            print('Flashing', len(data), 'bytes ...')
             tinyupdi.flash_data(data)
-            print('Verifying', len(data), 'bytes ...')
+            print('Verifying ...')
             tinyupdi.verify_data(data)
+            print('SUCCESS: %d bytes written and verified.' % len(data))
 
         # Write fuses
         if args.fuses is not None:
@@ -130,6 +132,13 @@ def _main():
             print('Verifying fuses ...')
             for fuse in fuselist:
                 tinyupdi.verify_fuse(fuse[0], fuse[1])
+            print('SUCCESS: Fuses written and verified.')
+                
+        # Write fuse to set oscillator according to frequency
+        if args.trim is not None:
+            print('Setting oscillator for %s Hz ...' % args.trim)
+            osc = tinyupdi.trim(int(args.trim))
+            print('SUCCESS: Oscillator runs at %d MHz with corresponding factory calibration.' % osc)
 
     except Exception as ex:
         sys.stderr.write('ERROR: ' + str(ex) + '!\n')
@@ -247,6 +256,19 @@ class Programmer(Serial):
         actual_val = self.__read_fuse(fusenum)
         if actual_val != value:
             raise Exception('Fuse ' + str(fusenum) + ' verification failure')
+
+    # Configure oscillator for given system freqency
+    def trim(self, freq):
+        for x in [1, 2, 4, 8, 16, 32, 64, 6, 10, 12, 24, 48]:
+            if round(20000000 / x) == freq:
+                self.set_fuse(0x02, 0x02)
+                self.verify_fuse(0x02, 0x02)
+                return 20
+            if round(16000000 / x) == freq:
+                self.set_fuse(0x02, 0x01)
+                self.verify_fuse(0x02, 0x01)
+                return 16
+        raise Exception('Unsupported frequency')
 
 
     # ------------------------------------------------------------------------------
@@ -638,7 +660,17 @@ UPDI_DEVICES = [
     {'name': 'attiny426',  'device_id': 0x1E922B, 'flash_size': 0x1000, 'flash_pagesize': 0x40},
     {'name': 'attiny826',  'device_id': 0x1E9328, 'flash_size': 0x2000, 'flash_pagesize': 0x40},
     {'name': 'attiny1626', 'device_id': 0x1E9429, 'flash_size': 0x4000, 'flash_pagesize': 0x40},
-    {'name': 'attiny3226', 'device_id': 0x1E9527, 'flash_size': 0x8000, 'flash_pagesize': 0x80}
+    {'name': 'attiny3226', 'device_id': 0x1E9527, 'flash_size': 0x8000, 'flash_pagesize': 0x80},
+    {'name': 'attiny417',  'device_id': 0x1E9220, 'flash_size': 0x1000, 'flash_pagesize': 0x40},
+    {'name': 'attiny427',  'device_id': 0x1E922A, 'flash_size': 0x1000, 'flash_pagesize': 0x40},
+    {'name': 'attiny807',  'device_id': 0x1E9323, 'flash_size': 0x2000, 'flash_pagesize': 0x40},
+    {'name': 'attiny817',  'device_id': 0x1E9320, 'flash_size': 0x2000, 'flash_pagesize': 0x40},
+    {'name': 'attiny827',  'device_id': 0x1E9327, 'flash_size': 0x2000, 'flash_pagesize': 0x40},
+    {'name': 'attiny1607', 'device_id': 0x1E9423, 'flash_size': 0x4000, 'flash_pagesize': 0x40},
+    {'name': 'attiny1617', 'device_id': 0x1E9420, 'flash_size': 0x4000, 'flash_pagesize': 0x40},
+    {'name': 'attiny1627', 'device_id': 0x1E9428, 'flash_size': 0x4000, 'flash_pagesize': 0x40},
+    {'name': 'attiny3217', 'device_id': 0x1E9522, 'flash_size': 0x8000, 'flash_pagesize': 0x80},
+    {'name': 'attiny3227', 'device_id': 0x1E9526, 'flash_size': 0x8000, 'flash_pagesize': 0x80}
 ]
 
 
