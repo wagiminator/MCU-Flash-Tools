@@ -1,7 +1,7 @@
 # MCU ISP Flash Tools
 This is a compilation of straightforward In-System Programming (ISP) flash tools for different microcontrollers, all written as individual Python scripts. Their single-script format makes them incredibly easy to integrate into any toolchain.
 
-- [chprog.py - Flashing CH55x, CH32Fxxx, CH32Vxxx via embedded USB bootloader](#chprog)
+- [chprog.py - Flashing CH5xx, CH32Fxxx, CH32Vxxx, CH32Xxxx via embedded USB bootloader](#chprog)
 - [rvprog.py - Flashing CH32Vxxx with WCH-LinkE via serial debug interface](#rvprog)
 - [puyaisp.py - Flashing PY32F0xx with USB-to-serial converter via embedded UART bootloader](#puyaisp)
 - [stc8isp.py - Flashing STC8G/8H with USB-to-serial converter via embedded UART bootloader](#stc8isp)
@@ -20,7 +20,7 @@ Windows users in particular may also need to install [libusb](https://github.com
 
 ## chprog
 ### Description
-With this tool, almost all WCH microcontrollers (e.g. CH55x, CH32Fxxx, and CH32Vxxx) which have a factory-builtin bootloader (v2.x.x) can be flashed via USB.
+With this tool, almost all WCH microcontrollers (CH5xx, CH32Fxxx, CH32Vxxx, CH32Xxxx, and CH32Lxxx) which have a factory-builtin bootloader (v2.x.x) can be flashed via USB.
 
 ### Preparations
 On Linux you do not need to install a driver for the USB bootloader. However, by default Linux will not expose enough permission to upload your code. In order to fix this, open a terminal and run the following commands:
@@ -42,7 +42,7 @@ python3 chprog.py firmware.bin
 
 ## rvprog
 ### Description
-With this tool, the WCH RISC-V microcontrollers (CH32Vxxx) can be programmed with the [WCH-LinkE](http://www.wch-ic.com/products/WCH-Link.html) (pay attention to the "E" in the name) via its serial debug interface.
+With this tool, the WCH RISC-V microcontrollers CH32Vxxx and CH32Xxxx can be programmed with the [WCH-LinkE](http://www.wch-ic.com/products/WCH-Link.html) (pay attention to the "E" in the name) via its serial debug interface.
 
 ### Preparations
 To use the WCH-Link on Linux, you need to grant access permissions beforehand by executing the following commands:
@@ -58,13 +58,13 @@ On Windows, if you need to you can install the WinUSB driver over the WCH interf
 To upload firmware, you should make the following connections to the WCH-LinkE (SWCLK is not present on the CH32V003 and therefore does not need to be connected):
 
 ```
-WCH-LinkE      CH32Vxxx
-+-------+      +------+
-|  SWCLK| ---> |SWCLK |
-|  SWDIO| <--> |SWDIO |
-|    GND| ---> |GND   |
-|    3V3| ---> |VDD   |
-+-------+      +------+
+WCH-LinkE       CH32V/X
++-------+      +-------+
+|  SWCLK| ---> |SWCLK  |
+|  SWDIO| <--> |SWDIO  |
+|    GND| ---> |GND    |
+|    3V3| ---> |VDD    |
++-------+      +-------+
 ```
 
 If the blue LED on the WCH-LinkE remains illuminated once it is connected to the USB port, it means that the device is currently in ARM mode and must be switched to RISC-V mode initially. There are a few ways to accomplish this:
@@ -81,12 +81,12 @@ Optional arguments:
   -h, --help                show help message and exit
   -a, --armmode             switch WCH-Link to ARM mode
   -v, --rvmode              switch WCH-Link to RISC-V mode
-  -b, --unbrick             unbrick chip
+  -b, --unbrick             unbrick chip (CH32V003 only)
   -u, --unlock              unlock chip (remove read protection)
   -l, --lock                lock chip (set read protection)
   -e, --erase               perform a whole chip erase
-  -G, --pingpio             make nRST pin a GPIO pin
-  -R, --pinreset            make nRST pin a reset pin
+  -G, --pingpio             make nRST pin a GPIO pin (CH32V003 only)
+  -R, --pinreset            make nRST pin a reset pin (CH32V003 only)
   -f FLASH, --flash FLASH   write BIN file to flash
 
 Example:

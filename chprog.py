@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   chprog - USB Programming Tool for WCH Microcontrollers
-# Version:   v2.1
+# Version:   v2.2
 # Year:      2022
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -10,7 +10,8 @@
 #
 # Description:
 # ------------
-# Simple Python tool for flashing WCH microcontrollers (CH5xx, CH32Fxxx, CH32Vxxx)
+# Simple Python tool for flashing WCH microcontrollers
+# (CH5xx, CH32Fxxx, CH32Vxxx, CH32Xxxx, CH32Lxxx)
 # via USB with factory built-in bootloader versions 2.x.x.
 #
 # References:
@@ -57,16 +58,15 @@ def _main():
         print('Connecting to bootloader ...')
         isp = Programmer()
         isp.detect()
-        print('Found', isp.chipname, 'with bootloader v' + isp.bootloader + '.')
-        print('Reading', sys.argv[1], '...')
+        print('Found %s with bootloader v%s.' % (isp.chipname, isp.bootloader))
+        print('Flashing %s to %s ...' % (sys.argv[1], isp.chipname))
         with open(sys.argv[1], 'rb') as f: data = f.read()
-        print('Flashing', len(data), 'bytes to', isp.chipname, '...')
         isp.flash(data)
-        print('Verifying', len(data), 'bytes ...')
+        print('Verifying %d bytes ...' % len(data))
         isp.verify(data)
         isp.exit()
     except Exception as ex:
-        sys.stderr.write('ERROR: ' + str(ex) + '!\n')
+        sys.stderr.write('ERROR: %s!\n' % str(ex))
         sys.exit(1)
     print('DONE.')
     sys.exit(0)
@@ -323,11 +323,27 @@ DEVICES = [
     {'name': 'CH32V305FBP6', 'id': 0x1752, 'code_size': 131072, 'data_size': 0},
     {'name': 'CH32V307VCT6', 'id': 0x1770, 'code_size': 262144, 'data_size': 0},
     {'name': 'CH32V307RCT6', 'id': 0x1771, 'code_size': 262144, 'data_size': 0},
-    {'name': 'CH32V307WCU6', 'id': 0x1773, 'code_size': 262144, 'data_size': 0}
+    {'name': 'CH32V307WCU6', 'id': 0x1773, 'code_size': 262144, 'data_size': 0},
+
+    {'name': 'CH32X033F8P6', 'id': 0x235a, 'code_size':  63488, 'data_size': 0},
+    {'name': 'CH32X035R8T6', 'id': 0x2350, 'code_size':  63488, 'data_size': 0},
+    {'name': 'CH32X035C8T6', 'id': 0x2351, 'code_size':  63488, 'data_size': 0},
+    {'name': 'CH32X035F8U6', 'id': 0x235e, 'code_size':  63488, 'data_size': 0},
+    {'name': 'CH32X035G8U6', 'id': 0x2356, 'code_size':  63488, 'data_size': 0},
+    {'name': 'CH32X035G8R6', 'id': 0x235b, 'code_size':  63488, 'data_size': 0},
+    {'name': 'CH32X035F7P6', 'id': 0x2357, 'code_size':  49152, 'data_size': 0},
+
+    {'name': 'CH32L103C8U6', 'id': 0x2530, 'code_size':  65536, 'data_size': 0},
+    {'name': 'CH32L103C8T6', 'id': 0x2531, 'code_size':  65536, 'data_size': 0},
+    {'name': 'CH32L103F8P6', 'id': 0x253a, 'code_size':  65536, 'data_size': 0},
+    {'name': 'CH32L103G8R6', 'id': 0x253b, 'code_size':  65536, 'data_size': 0},
+    {'name': 'CH32L103K8U6', 'id': 0x2532, 'code_size':  65536, 'data_size': 0},
+    {'name': 'CH32L103F8U6', 'id': 0x253d, 'code_size':  65536, 'data_size': 0},
+    {'name': 'CH32L103F7P6', 'id': 0x2537, 'code_size':  49152, 'data_size': 0}
 ]
 
-LASTWRITELIST = (0x12, 0x14, 0x15, 0x17, 0x18,0x19, 0x1a)
-WPREMOVELIST  = (0x14, 0x15, 0x17, 0x18, 0x19, 0x1a)
+LASTWRITELIST = (0x12, 0x14, 0x15, 0x17, 0x18,0x19, 0x1a, 0x23, 0x25)
+WPREMOVELIST  = (0x14, 0x15, 0x17, 0x18, 0x19, 0x1a, 0x23, 0x25)
 
 # ===================================================================================
 
