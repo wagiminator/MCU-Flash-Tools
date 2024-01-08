@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   rvprog - Programming Tool for WCH-LinkE and CH32Vxxx and CH32Xxxx.
-# Version:   v1.4
+# Version:   v1.5
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -93,7 +93,6 @@ def _main():
             armlink.write(0x02, b'\x81\xff\x01\x52')
             time.sleep(2)
             print('DONE.')
-
     except Exception as ex:
         sys.stderr.write('ERROR: %s!\n' % str(ex))
 
@@ -106,17 +105,6 @@ def _main():
         sys.stderr.write('ERROR: %s!\n' % str(ex))
         sys.exit(1)
 
-    # Establish connection to target MCU
-    try:
-        if any( (args.unbrick, args.unlock, args.lock, args.erase, args.pingpio, args.pinreset, args.flash) ):
-            print('Connecting to MCU ...')
-            isp.connect()
-            print('SUCCESS: Connected to %s with %d bytes of flash.' % (isp.chipname, isp.flashsize))
-    except Exception as ex:
-        sys.stderr.write('ERROR: %s!\n' % str(ex))
-        isp.exit()
-        sys.exit(1)
-
     # Performing actions
     try:
         # Unbrick chip
@@ -124,6 +112,12 @@ def _main():
             print('Unbricking chip ...')
             isp.unbrick()
             print('SUCCESS: Chip is unbricked.')
+
+        # Establish connection to target MCU
+        if any( (args.unlock, args.lock, args.erase, args.flash, args.pingpio, args.pinreset) ):
+            print('Connecting to MCU ...')
+            isp.connect()
+            print('SUCCESS: Connected to %s with %d bytes of flash.' % (isp.chipname, isp.flashsize))
 
         # Unlock chip
         if args.unlock:
@@ -207,7 +201,10 @@ class Programmer:
     def connect(self):
         # Connect to target MCU and get type
         success = 0
-        for _ in range(3):
+        for i in range(3):
+            if i > 0:
+                print('Failed to connect, trying to unbrick MCU ...')
+                self.sendcommand(b'\x81\x0d\x01\x0f\x09')
             reply = self.sendcommand(b'\x81\x0d\x01\x02')
             if len(reply) < 8 or set(reply[:4]) == set((0x81, 0x55, 0x01, 0x01)):
                 time.sleep(0.2)
@@ -225,8 +222,8 @@ class Programmer:
                 if d['id'] == self.chipid:
                     self.device = d
             if self.device is None:
-                print('Unsupported chip (ID: 0x%04x)?' % self.chipid)
-                time.sleep(0.2)
+                if not self.chipid == 0:
+                    print('Unsupported chip (ID: 0x%04x)?' % self.chipid)
                 continue
 
             # Success
@@ -269,10 +266,7 @@ class Programmer:
 
     # Unbrick MCU
     def unbrick(self):
-        if self.chipseries == 0x00:
-            self.sendcommand((0x81, 0x0d, 0x01, 0x0f, self.chipmark))
-        else:
-            raise Exception('Unbrick not available for this MCU')
+        self.sendcommand(b'\x81\x0d\x01\x0f\x09')
 
     # Lock MCU (set read protection)
     def lock(self):
