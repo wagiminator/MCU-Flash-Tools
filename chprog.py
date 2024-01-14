@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   chprog - USB Programming Tool for WCH Microcontrollers
-# Version:   v2.2
+# Version:   v2.3
 # Year:      2022
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -31,6 +31,7 @@
 #
 # Linux users need permission to access the device. Run:
 # echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="4348", ATTR{idProduct}=="55e0", MODE="666"' | sudo tee /etc/udev/rules.d/99-ch55x.rules
+# echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1a86", ATTR{idProduct}=="55e0", MODE="666"' | sudo tee -a /etc/udev/rules.d/99-ch55x.rules
 # sudo udevadm control --reload-rules
 #
 # On Windows you will need the Zadig tool (https://zadig.akeo.ie/) to install the
@@ -79,9 +80,11 @@ class Programmer:
     # Init programming interface
     def __init__(self):
         # Find device
-        self.dev = usb.core.find(idVendor = CH_USB_VENDOR_ID, idProduct = CH_USB_PRODUCT_ID)
+        self.dev = usb.core.find(idVendor = CH_USB_VENDOR_ID1, idProduct = CH_USB_PRODUCT_ID)
         if self.dev is None:
-            raise Exception('MCU not found. Check if device is in BOOT mode')
+            self.dev = usb.core.find(idVendor = CH_USB_VENDOR_ID2, idProduct = CH_USB_PRODUCT_ID)
+            if self.dev is None:
+                raise Exception('MCU not found. Check if device is in BOOT mode')
 
         # Clear USB receive buffer
         try:    self.dev.read(CH_USB_EP_IN, 1024, 1)
@@ -226,7 +229,8 @@ class Programmer:
 # Protocol Constants
 # ===================================================================================
 
-CH_USB_VENDOR_ID    = 0x4348    # VID
+CH_USB_VENDOR_ID1   = 0x4348    # VID 1
+CH_USB_VENDOR_ID2   = 0x1a86    # VID 2
 CH_USB_PRODUCT_ID   = 0x55e0    # PID
 CH_USB_INTERFACE    = 0         # interface number
 CH_USB_EP_OUT       = 0x02      # endpoint for command transfer out
