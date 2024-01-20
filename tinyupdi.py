@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   TinyUPDI - Minimal application-specific UPDI programmer based on pyupdi
-# Version:   v1.4
+# Version:   v1.5
 # Year:      2022
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -177,13 +177,11 @@ class Programmer(Serial):
                     self.open()
                 except:
                     continue
+                self.__send_double_break()
                 self.__init()
                 if not self.__check():
-                    self.__send_double_break()
-                    self.__init()
-                    if not self.__check():
-                        self.close()
-                        continue
+                    self.close()
+                    continue
                 try:
                     self.__enter_progmode()
                 except:
