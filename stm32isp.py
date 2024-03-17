@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   stm32isp - Programming Tool for some STM32 Microcontrollers
-# Version:   v0.7
+# Version:   v0.8
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -10,8 +10,9 @@
 #
 # Description:
 # ------------
-# Python tool for flashing some STM32 microcontrollers via USB-to-serial converter 
-# utilizing the factory built-in embedded boot loader. Supported devices:
+# Python tool for flashing some entry-level STM32 microcontrollers via USB-to-serial 
+# converter utilizing the factory built-in UART boot loader. Supported devices:
+# - STM32C011/031
 # - STM32F03xx4/6
 # - STM32G03x/04x
 # - STM32L01x/02x
@@ -37,6 +38,12 @@
 # using an SWD programmer (e.g. ST-Link) and appropriate software.
 #
 # Connect your USB-to-serial converter to your MCU:
+# USB2SERIAL      STM32C011/031
+#        RXD <--- PA9  (PA11)
+#        TXD ---> PA10 (PA12)
+#        VCC ---> VCC
+#        GND ---> GND
+#
 # USB2SERIAL      STM32F03xx4/6
 #        RXD <--- PA9  or PA14
 #        TXD ---> PA10 or PA15
@@ -136,8 +143,8 @@ def _main():
             isp.verifyflash(ST_CODE_ADDR, data)
             print('SUCCESS:', len(data), 'bytes written and verified.')
 
-        # Enable BOOT0 pin in OPTION bytes (nBOOT_SEL = 0) for STM32G03x/04x
-        if isp.pid == 0x466 and isp.checkbootpin():
+        # Enable BOOT0 pin in OPTION bytes (nBOOT_SEL = 0) for STM32C/G
+        if (isp.pid in (0x443, 0x453, 0x466)) and isp.checkbootpin():
             print('Enabling BOOT0 pin in OPTION bytes ...')
             isp.enablebootpin()
             print('SUCCESS: Modified OPTION bytes written.')
@@ -257,13 +264,13 @@ class Programmer(Serial):
             self.optionbytes = int.from_bytes(self.option[:4], byteorder='little')
         return True
 
-    # Check if BOOT0 pin ist disabled in OPTION bytes (STM32G03x/04x only)
+    # Check if BOOT0 pin ist disabled in OPTION bytes (STM32C/G only)
     def checkbootpin(self):
         return ((self.option[3] & 0x01) == 0x01)
 
-    # Enable BOOT0 pin in OPTION bytes (nBOOT_SEL = 0), STM32G03x/04x only
+    # Enable BOOT0 pin in OPTION bytes (nBOOT_SEL = 0), STM32C/G only
     def enablebootpin(self):
-        if self.pid == 0x466:
+        if self.pid in (0x443, 0x453, 0x466):
             self.option[3] = (self.option[3] & 0b11111000) | 0b00000110
             for x in range(4):
                 self.option[x+4] = self.option[x] ^ 0xff
@@ -398,6 +405,8 @@ ST_SYNCH        = 0x7f
 # ===================================================================================
 
 DEVICES = [
+    {'name': 'STM32C011xx',   'id': 0x443, 'opt_addr': 0x1fff7800, 'opt_default': 0xfffffeaa},
+    {'name': 'STM32C031xx',   'id': 0x453, 'opt_addr': 0x1fff7800, 'opt_default': 0xfffffeaa},
     {'name': 'STM32G03x/04x', 'id': 0x466, 'opt_addr': 0x1fff7800, 'opt_default': 0xfffffeaa},
     {'name': 'STM32L01x/02x', 'id': 0x457, 'opt_addr': 0x1ff80000, 'opt_default': 0x807000aa},
     {'name': 'STM32F03xx4/6', 'id': 0x444, 'opt_addr': 0x1ffff800, 'opt_default': 0x00ff55aa}

@@ -203,7 +203,8 @@ python3 stc8usb.py -t 24000000 -f firmware.bin
 
 ## stm32isp
 ### Description
-With this tool, some entry-level STM32 microcontrollers can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded bootloader. It currently supports the following devices:
+With this tool, some entry-level STM32 microcontrollers can be flashed via a simple USB-to-serial converter by utilizing the factory built-in UART bootloader. It currently supports the following devices:
+- STM32C011/031
 - STM32F03xx4/6
 - STM32G03x/04x
 - STM32L01x/02x
@@ -215,6 +216,14 @@ If necessary, a driver for the USB-to-serial converter used must be installed.
 Connect your USB-to-serial converter to your STM32 MCU as follows:
 
 ```
+USB2SERIAL      STM32C011/031
++--------+      +------------+
+|     RXD| <--- |PA9  (PA11) |
+|     TXD| ---> |PA10 (PA12) |
+|     3V3| ---> |VDD (3V3)   |
+|     GND| ---> |GND         |
++--------+      +------------+
+
 USB2SERIAL      STM32F03xx4/6
 +--------+      +------------+
 |     RXD| <--- |PA9  or PA14|
