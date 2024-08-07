@@ -1,0 +1,1 @@
+from .stm32isp import _main

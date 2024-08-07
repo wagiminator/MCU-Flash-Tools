@@ -1,5 +1,5 @@
 # MCU ISP Flash Tools
-This is a compilation of straightforward In-System Programming (ISP) flash tools for different microcontrollers, all written as individual Python scripts. Their single-script format makes them incredibly easy to integrate into any toolchain.
+This is a compilation of straightforward In-System Programming (ISP) flash tools for different microcontrollers, all written as individual Python scripts. Their single-script format makes them incredibly easy to integrate into any toolchain. Furthermore, these tools can also be installed via pip and then executed as command-line commands.
 
 - [chprog.py - Flashing CH5xx, CH32Fxxx, CH32Vxxx, CH32Xxxx via embedded USB bootloader](#chprog)
 - [rvprog.py - Flashing CH32Vxxx with WCH-LinkE via serial debug interface](#rvprog)
@@ -13,7 +13,7 @@ In order for these tools to work, Python3 must be installed on your system. To d
 
 ```
 sudo apt install python3 python3-pip
-python3 -m pip install pyusb pyserial hid
+pip install pyusb pyserial hid
 ```
 
 Windows users in particular may also need to install [libusb](https://github.com/libusb/libusb).
@@ -33,13 +33,16 @@ sudo udevadm control --reload-rules
 
 For Windows, you need the [CH372 driver](http://www.wch-ic.com/downloads/CH372DRV_EXE.html). Alternatively, you can also use the [Zadig Tool](https://zadig.akeo.ie/) to install the correct driver. Here, click "Options" -> "List All Devices" and select the USB module. Then install the libusb-win32 driver. To do this, the board must be connected and the microcontroller must be in bootloader mode.
 
-### Usage
+### Usage as a Script
 The bootloader must be started manually for new uploads. To do this, the board must first be disconnected from the USB port and all voltage sources. Now press the BOOT button and keep it pressed while reconnecting the board to the USB port of your PC. The chip now starts in bootloader mode, the BOOT button can be released and new firmware can be uploaded via USB. Alternatively, you can leave the board connected to the USB port, press and hold the BOOT button, press and release the RESET button and then release the BOOT button to enter the bootloader mode. If there is no BOOT button on the board, look at the datasheet to find out which pin needs to be pulled to which voltage level for the microcontroller to go into boot mode.
 
 Now run the following command (example):
 ```
 python3 chprog.py firmware.bin
 ```
+
+### Installation via pip
+Take a look [here](https://pypi.org/project/chprog/).
 
 ## rvprog
 ### Description
@@ -55,7 +58,7 @@ sudo udevadm control --reload-rules
 
 On Windows, if you need to you can install the WinUSB driver over the WCH interface 1.
 
-### Usage
+### Usage as a Script
 To upload firmware, you should make the following connections to the WCH-LinkE (SWCLK is not present on the CH32V003 and therefore does not need to be connected):
 
 ```
@@ -94,6 +97,9 @@ Example:
 python3 rvprog.py -f firmware.bin
 ```
 
+### Installation via pip
+Take a look [here](https://pypi.org/project/rvprog/).
+
 ## puyaisp
 ### Description
 With this tool, PUYA microcontrollers of the series PY32F0xx (and maybe other PY32) can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded bootloader.
@@ -101,7 +107,7 @@ With this tool, PUYA microcontrollers of the series PY32F0xx (and maybe other PY
 ### Preparations
 If necessary, a driver for the USB-to-serial converter used must be installed.
 
-### Usage
+### Usage as a Script
 Connect your USB-to-serial converter to your PY32F0xx MCU as follows:
 
 ```
@@ -135,6 +141,9 @@ Example:
 python3 puyaisp.py -f firmware.bin
 ```
 
+### Installation via pip
+Take a look [here](https://pypi.org/project/puyaisp/).
+
 ## stc8isp
 ### Description
 With this tool, STC8G/8H microcontrollers can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded bootloader.
@@ -142,7 +151,7 @@ With this tool, STC8G/8H microcontrollers can be flashed via a simple USB-to-ser
 ### Preparations
 If necessary, a driver for the USB-to-serial converter used must be installed.
 
-### Usage
+### Usage as a Script
 - Connect your USB-to-serial converter to your MCU as shown below.
 - Run stc8isp.py (see below for arguments).
 - Perform a power cycle of your MCU (reconnect to power) when prompted.
@@ -171,6 +180,9 @@ Example:
 python3 stc8isp.py -p /dev/ttyUSB0 -t 24000000 -f firmware.bin
 ```
 
+### Installation via pip
+Take a look [here](https://pypi.org/project/stc8isp/).
+
 ## stc8usb
 ## Description
 This tool allows you to flash STC8H8KxxU microcontrollers through their USB interface, using the pre-installed embedded USB bootloader.
@@ -183,7 +195,7 @@ echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="34bf", ATTR{idProduct}=="1001", MODE="6
 sudo udevadm control --reload-rules
 ```
 
-## Usage
+### Usage as a Script
 To initiate new uploads, the bootloader needs to be manually started. Begin by unplugging the board from the USB port and disconnecting all power sources. Then, press and hold the BOOT button while reconnecting the board to your PC's USB port. This action triggers the chip to enter bootloader mode. Once in this mode, you can release the BOOT button and proceed to upload new firmware via USB.
 
 If your board doesn't have a BOOT button, you'll need to short pin P3.2 to ground while connecting to achieve the same effect.
@@ -201,6 +213,9 @@ Example:
 python3 stc8usb.py -t 24000000 -f firmware.bin
 ```
 
+### Installation via pip
+Take a look [here](https://pypi.org/project/stc8usb/).
+
 ## stm32isp
 ### Description
 With this tool, some entry-level STM32 microcontrollers can be flashed via a simple USB-to-serial converter by utilizing the factory built-in UART bootloader. It currently supports the following devices:
@@ -212,7 +227,7 @@ With this tool, some entry-level STM32 microcontrollers can be flashed via a sim
 ### Preparations
 If necessary, a driver for the USB-to-serial converter used must be installed.
 
-### Usage
+### Usage as a Script
 Connect your USB-to-serial converter to your STM32 MCU as follows:
 
 ```
@@ -269,6 +284,9 @@ Example:
 python3 stm32isp.py -f firmware.bin
 ```
 
+### Installation via pip
+Take a look [here](https://pypi.org/project/stm32isp/).
+
 ## tinyupdi
 ### Description
 This tool allows tinyAVR series 0, 1, and 2 microcontrollers to be programmed using a USB-to-serial converter connected in a special way to the UPDI pin (also called SerialUPDI). More information can be found [here](https://github.com/SpenceKonde/AVR-Guidance/blob/master/UPDI/jtag2updi.md).
@@ -276,7 +294,7 @@ This tool allows tinyAVR series 0, 1, and 2 microcontrollers to be programmed us
 ### Preparations
 If necessary, a driver for the USB-to-serial converter used must be installed.
 
-### Usage
+### Usage as a Script
 Connect the USB-to-serial converter via USB to the PC and via the circuit described below to the UPDI pin of the microcontroller.
 
 ```
@@ -307,6 +325,9 @@ Optional arguments:
 Example:
 python3 tinyupdi.py -f firmware.bin -fs 6:0x04 7:0x00 8:0x00 -t 8000000
 ```
+
+### Installation via pip
+Take a look [here](https://pypi.org/project/tinyupdi/).
 
 ## Links
 1. [MCU Templates](https://github.com/wagiminator/MCU-Templates)
