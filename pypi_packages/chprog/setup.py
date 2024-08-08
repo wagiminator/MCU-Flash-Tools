@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='chprog',
-    version='2.4.0',    
+    version='2.5.0',    
     description='USB Programming Tool for WCH Microcontrollers',
     url='https://github.com/wagiminator/MCU-Flash-Tools',
     author='Stefan Wagner',

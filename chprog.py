@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   chprog - USB Programming Tool for WCH Microcontrollers
-# Version:   v2.4
+# Version:   v2.5
 # Year:      2022
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -11,7 +11,7 @@
 # Description:
 # ------------
 # Simple Python tool for flashing WCH microcontrollers
-# (CH5xx, CH32Fxxx, CH32Vxxx, CH32Xxxx, CH32Lxxx)
+# (CH5xx, CH6xx, CH32Fxxx, CH32Vxxx, CH32Xxxx, CH32Lxxx)
 # via USB with factory built-in bootloader versions 2.x.x.
 #
 # References:
@@ -286,9 +286,29 @@ DEVICES = [
     {'name': 'CH558', 'id': 0x1158, 'code_size':  61440, 'data_size':  1024},
     {'name': 'CH559', 'id': 0x1159, 'code_size':  61440, 'data_size':  1024},
 
+    {'name': 'CH563', 'id': 0x1163, 'code_size': 229376, 'data_size': 28672},
+    {'name': 'CH565', 'id': 0x1165, 'code_size': 458752, 'data_size': 32768},
+    {'name': 'CH567', 'id': 0x1167, 'code_size': 196608, 'data_size': 32768},
+    {'name': 'CH568', 'id': 0x1168, 'code_size': 196608, 'data_size': 32768},
+    {'name': 'CH569', 'id': 0x1169, 'code_size': 458752, 'data_size': 32768},
+
+    {'name': 'CH571', 'id': 0x1371, 'code_size': 196608, 'data_size': 32768},
     {'name': 'CH573', 'id': 0x1373, 'code_size': 458752, 'data_size': 32768},
+    {'name': 'CH577', 'id': 0x1377, 'code_size': 131072, 'data_size':  2048},
+    {'name': 'CH578', 'id': 0x1378, 'code_size': 163840, 'data_size':  2048},
     {'name': 'CH579', 'id': 0x1379, 'code_size': 256000, 'data_size':  2048},
+
+    {'name': 'CH581', 'id': 0x1681, 'code_size': 196608, 'data_size': 32768},
     {'name': 'CH582', 'id': 0x1682, 'code_size': 458752, 'data_size': 32768},
+    {'name': 'CH583', 'id': 0x1683, 'code_size': 458752, 'data_size': 32768},
+
+    {'name': 'CH591', 'id': 0x2291, 'code_size': 196608, 'data_size': 32768},
+    {'name': 'CH592', 'id': 0x2292, 'code_size': 458752, 'data_size': 32768},
+
+    {'name': 'CH643W',       'id': 0x2430, 'code_size':  63488, 'data_size': 0},
+    {'name': 'CH643Q',       'id': 0x2431, 'code_size':  63488, 'data_size': 0},
+    {'name': 'CH643L',       'id': 0x2433, 'code_size':  63488, 'data_size': 0},
+    {'name': 'CH643U',       'id': 0x2434, 'code_size':  63488, 'data_size': 0},
 
     {'name': 'CH32F103x6',   'id': 0x1432, 'code_size':  32768, 'data_size': 0},
     {'name': 'CH32F103x8',   'id': 0x143f, 'code_size':  65536, 'data_size': 0},
@@ -299,13 +319,12 @@ DEVICES = [
     {'name': 'CH32F203RBT6', 'id': 0x1833, 'code_size': 131072, 'data_size': 0},
     {'name': 'CH32F205RBT6', 'id': 0x1850, 'code_size': 131072, 'data_size': 0},
     {'name': 'CH32F207VCT6', 'id': 0x1870, 'code_size': 262144, 'data_size': 0},
-
-    {'name': 'CH32F203C8U6', 'id': 0x1a30, 'code_size':  65536, 'data_size': 0},
-    {'name': 'CH32F203C8T6', 'id': 0x1a31, 'code_size':  65536, 'data_size': 0},
-    {'name': 'CH32F203K8T6', 'id': 0x1a32, 'code_size':  65536, 'data_size': 0},
-    {'name': 'CH32F203C6T6', 'id': 0x1a33, 'code_size':  32768, 'data_size': 0},
-    {'name': 'CH32F208WBU6', 'id': 0x1a80, 'code_size': 491520, 'data_size': 0},
-    {'name': 'CH32F208RBT6', 'id': 0x1a81, 'code_size': 131072, 'data_size': 0},
+    {'name': 'CH32F203C8U6', 'id': 0x2030, 'code_size':  65536, 'data_size': 0},
+    {'name': 'CH32F203C8T6', 'id': 0x2031, 'code_size':  65536, 'data_size': 0},
+    {'name': 'CH32F203K8T6', 'id': 0x2032, 'code_size':  65536, 'data_size': 0},
+    {'name': 'CH32F203C6T6', 'id': 0x2033, 'code_size':  32768, 'data_size': 0},
+    {'name': 'CH32F208WBU6', 'id': 0x2080, 'code_size': 491520, 'data_size': 0},
+    {'name': 'CH32F208RBT6', 'id': 0x2081, 'code_size': 131072, 'data_size': 0},
 
     {'name': 'CH32V103x6',   'id': 0x1532, 'code_size':  32768, 'data_size': 0},
     {'name': 'CH32V103x8',   'id': 0x153f, 'code_size':  65536, 'data_size': 0},
@@ -320,6 +339,7 @@ DEVICES = [
     {'name': 'CH32V203F6P6', 'id': 0x1937, 'code_size':  32768, 'data_size': 0},
     {'name': 'CH32V203F8P6', 'id': 0x193a, 'code_size':  65536, 'data_size': 0},
     {'name': 'CH32V203G8R6', 'id': 0x193b, 'code_size':  65536, 'data_size': 0},
+    {'name': 'CH32V203F8U6', 'id': 0x193e, 'code_size':  65536, 'data_size': 0},
     {'name': 'CH32V208WBU6', 'id': 0x1980, 'code_size': 491520, 'data_size': 0},
     {'name': 'CH32V208RBT6', 'id': 0x1981, 'code_size': 131072, 'data_size': 0},
     {'name': 'CH32V208CBU6', 'id': 0x1982, 'code_size': 131072, 'data_size': 0},
@@ -327,10 +347,11 @@ DEVICES = [
 
     {'name': 'CH32V303VCT6', 'id': 0x1730, 'code_size': 262144, 'data_size': 0},
     {'name': 'CH32V303RCT6', 'id': 0x1731, 'code_size': 262144, 'data_size': 0},
-    {'name': 'CH32V303RBT6', 'id': 0x1733, 'code_size': 131072, 'data_size': 0},
-    {'name': 'CH32V303CBT6', 'id': 0x1734, 'code_size': 131072, 'data_size': 0},
+    {'name': 'CH32V303RBT6', 'id': 0x1732, 'code_size': 131072, 'data_size': 0},
+    {'name': 'CH32V303CBT6', 'id': 0x1733, 'code_size': 131072, 'data_size': 0},
     {'name': 'CH32V305RBT6', 'id': 0x1750, 'code_size': 131072, 'data_size': 0},
     {'name': 'CH32V305FBP6', 'id': 0x1752, 'code_size': 131072, 'data_size': 0},
+    {'name': 'CH32V305GBU6', 'id': 0x175b, 'code_size': 131072, 'data_size': 0},
     {'name': 'CH32V307VCT6', 'id': 0x1770, 'code_size': 262144, 'data_size': 0},
     {'name': 'CH32V307RCT6', 'id': 0x1771, 'code_size': 262144, 'data_size': 0},
     {'name': 'CH32V307WCU6', 'id': 0x1773, 'code_size': 262144, 'data_size': 0},
@@ -338,22 +359,22 @@ DEVICES = [
     {'name': 'CH32X033F8P6', 'id': 0x235a, 'code_size':  63488, 'data_size': 0},
     {'name': 'CH32X035R8T6', 'id': 0x2350, 'code_size':  63488, 'data_size': 0},
     {'name': 'CH32X035C8T6', 'id': 0x2351, 'code_size':  63488, 'data_size': 0},
-    {'name': 'CH32X035F8U6', 'id': 0x235e, 'code_size':  63488, 'data_size': 0},
     {'name': 'CH32X035G8U6', 'id': 0x2356, 'code_size':  63488, 'data_size': 0},
-    {'name': 'CH32X035G8R6', 'id': 0x235b, 'code_size':  63488, 'data_size': 0},
     {'name': 'CH32X035F7P6', 'id': 0x2357, 'code_size':  49152, 'data_size': 0},
+    {'name': 'CH32X035G8R6', 'id': 0x235b, 'code_size':  63488, 'data_size': 0},
+    {'name': 'CH32X035F8U6', 'id': 0x235e, 'code_size':  63488, 'data_size': 0},
 
     {'name': 'CH32L103C8U6', 'id': 0x2530, 'code_size':  65536, 'data_size': 0},
     {'name': 'CH32L103C8T6', 'id': 0x2531, 'code_size':  65536, 'data_size': 0},
+    {'name': 'CH32L103K8U6', 'id': 0x2532, 'code_size':  65536, 'data_size': 0},
+    {'name': 'CH32L103F7P6', 'id': 0x2537, 'code_size':  49152, 'data_size': 0},
     {'name': 'CH32L103F8P6', 'id': 0x253a, 'code_size':  65536, 'data_size': 0},
     {'name': 'CH32L103G8R6', 'id': 0x253b, 'code_size':  65536, 'data_size': 0},
-    {'name': 'CH32L103K8U6', 'id': 0x2532, 'code_size':  65536, 'data_size': 0},
-    {'name': 'CH32L103F8U6', 'id': 0x253d, 'code_size':  65536, 'data_size': 0},
-    {'name': 'CH32L103F7P6', 'id': 0x2537, 'code_size':  49152, 'data_size': 0}
+    {'name': 'CH32L103F8U6', 'id': 0x253d, 'code_size':  65536, 'data_size': 0}
 ]
 
-LASTWRITELIST = (0x12, 0x14, 0x15, 0x17, 0x18,0x19, 0x1a, 0x23, 0x25)
-WPREMOVELIST  = (0x14, 0x15, 0x17, 0x18, 0x19, 0x1a, 0x23, 0x25)
+LASTWRITELIST = (0x12, 0x14, 0x15, 0x16, 0x17, 0x18,0x19, 0x20, 0x23, 0x24, 0x25)
+WPREMOVELIST  = (0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x23, 0x24, 0x25)
 
 # ===================================================================================
 

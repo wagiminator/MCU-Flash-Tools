@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chprog"
-version = "2.4.0"
+version = "2.5.0"
 authors = [
     { name="Stefan Wagner", email="wagiminator@web.de" },
 ]
