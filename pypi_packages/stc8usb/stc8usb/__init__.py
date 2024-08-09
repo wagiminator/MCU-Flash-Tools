@@ -1,1 +1,0 @@
-from .stc8usb import _main

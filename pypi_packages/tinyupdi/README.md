@@ -1,4 +1,4 @@
-# tinyUPDI - Minimal UPDI Programming Tool for tinyAVR
+# Minimal UPDI Programming Tool for tinyAVR
 ## Description
 This tool allows tinyAVR series 0, 1, and 2 microcontrollers to be programmed using a USB-to-serial converter connected in a special way to the UPDI pin (also called SerialUPDI). More information can be found [here](https://github.com/SpenceKonde/AVR-Guidance/blob/master/UPDI/jtag2updi.md).
 
@@ -6,9 +6,7 @@ This tool allows tinyAVR series 0, 1, and 2 microcontrollers to be programmed us
 If necessary, a driver for the USB-to-serial converter used must be installed.
 
 ## Installation
-- Install [Python3](https://www.pythontutorial.net/getting-started/install-python/).
-- Install [pip](https://pip.pypa.io/en/stable/installation/).
-- Install rvprog: 
+Ensure that the [prerequisites](https://packaging.python.org/en/latest/tutorials/installing-packages/) for installing Python packages are met. Then execute the following command in the command line:
 
 ```
 pip install tinyupdi

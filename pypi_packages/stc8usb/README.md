@@ -1,4 +1,4 @@
-#  stc8usb - USB Programming Tool for STC8H8KxxU Microcontrollers
+#  USB Programming Tool for STC8H8KxxU Microcontrollers
 ## Description
 This tool allows you to flash STC8H8KxxU microcontrollers through their USB interface, using the pre-installed embedded USB bootloader.
 
@@ -11,9 +11,7 @@ sudo udevadm control --reload-rules
 ```
 
 ## Installation
-- Install [Python3](https://www.pythontutorial.net/getting-started/install-python/).
-- Install [pip](https://pip.pypa.io/en/stable/installation/).
-- Install stc8usb: 
+Ensure that the [prerequisites](https://packaging.python.org/en/latest/tutorials/installing-packages/) for installing Python packages are met. Then execute the following command in the command line:
 
 ```
 pip install stc8usb

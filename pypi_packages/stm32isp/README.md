@@ -1,4 +1,4 @@
-#  stm32isp - Programming Tool for some STM32 Microcontrollers
+#  Programming Tool for some STM32 Microcontrollers
 ## Description
 With this tool, some entry-level STM32 microcontrollers can be flashed via a simple USB-to-serial converter by utilizing the factory built-in UART bootloader. It currently supports the following devices:
 - STM32C011/031
@@ -10,9 +10,7 @@ With this tool, some entry-level STM32 microcontrollers can be flashed via a sim
 If necessary, a driver for the USB-to-serial converter used must be installed.
 
 ## Installation
-- Install [Python3](https://www.pythontutorial.net/getting-started/install-python/).
-- Install [pip](https://pip.pypa.io/en/stable/installation/).
-- Install stm32isp: 
+Ensure that the [prerequisites](https://packaging.python.org/en/latest/tutorials/installing-packages/) for installing Python packages are met. Then execute the following command in the command line:
 
 ```
 pip install stm32isp

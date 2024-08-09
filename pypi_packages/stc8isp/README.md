@@ -1,14 +1,12 @@
-#  stc8isp - Programming Tool for STC8G/8H Microcontrollers
+#  Programming Tool for STC8G/8H Microcontrollers
 ## Description
-With this tool, STC8G/8H microcontrollers can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded bootloader.
+With this tool, STC8G/8H microcontrollers can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded UART bootloader.
 
 ## Preparations
 If necessary, a driver for the USB-to-serial converter used must be installed.
 
 ## Installation
-- Install [Python3](https://www.pythontutorial.net/getting-started/install-python/).
-- Install [pip](https://pip.pypa.io/en/stable/installation/).
-- Install stc8isp: 
+Ensure that the [prerequisites](https://packaging.python.org/en/latest/tutorials/installing-packages/) for installing Python packages are met. Then execute the following command in the command line:
 
 ```
 pip install stc8isp

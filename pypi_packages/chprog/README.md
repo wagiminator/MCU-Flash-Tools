@@ -1,4 +1,4 @@
-# chprog - USB Programming Tool for WCH Microcontrollers
+# USB Programming Tool for WCH Microcontrollers
 ## Description
 With this tool, almost all WCH microcontrollers (CH5xx, CH6xx, CH32Fxxx, CH32Vxxx, CH32Xxxx, and CH32Lxxx) which have a factory-builtin bootloader (v2.x.x) can be flashed via USB.
 

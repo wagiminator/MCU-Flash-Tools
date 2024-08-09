@@ -102,7 +102,7 @@ Take a look [here](https://pypi.org/project/rvprog/).
 
 ## puyaisp
 ### Description
-With this tool, PUYA microcontrollers of the series PY32F0xx (and maybe other PY32) can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded bootloader.
+With this tool, PUYA microcontrollers of the series PY32F0xx (and maybe other PY32) can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded UART bootloader.
 
 ### Preparations
 If necessary, a driver for the USB-to-serial converter used must be installed.
@@ -146,7 +146,7 @@ Take a look [here](https://pypi.org/project/puyaisp/).
 
 ## stc8isp
 ### Description
-With this tool, STC8G/8H microcontrollers can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded bootloader.
+With this tool, STC8G/8H microcontrollers can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded UART bootloader.
 
 ### Preparations
 If necessary, a driver for the USB-to-serial converter used must be installed.

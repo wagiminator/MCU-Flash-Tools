@@ -1,4 +1,4 @@
-#  puyaisp - Programming Tool for PUYA PY32F0xx Microcontrollers
+#  Programming Tool for PUYA PY32F0xx Microcontrollers
 ## Description
 With this tool, PUYA microcontrollers of the series PY32F0xx (and maybe other PY32) can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded UART bootloader.
 
@@ -6,9 +6,7 @@ With this tool, PUYA microcontrollers of the series PY32F0xx (and maybe other PY
 If necessary, a driver for the USB-to-serial converter used must be installed.
 
 ## Installation
-- Install [Python3](https://www.pythontutorial.net/getting-started/install-python/).
-- Install [pip](https://pip.pypa.io/en/stable/installation/).
-- Install puyaisp: 
+Ensure that the [prerequisites](https://packaging.python.org/en/latest/tutorials/installing-packages/) for installing Python packages are met. Then execute the following command in the command line:
 
 ```
 pip install puyaisp

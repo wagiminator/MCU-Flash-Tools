@@ -3,22 +3,20 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "stc8usb"
-version = "0.2.0"
+name         = "stc8usb"
+version      = "0.2.1"
+description  = "USB Programming Tool for STC8H8KxxU Microcontrollers"
+keywords     = ["ISP", "STC", "STC8", "STC8H8K64U", "STC8H8K32U", "microcontroller"]
+dependencies = ["hid"]
+requires-python = ">=3.8"
 authors = [
     { name="Stefan Wagner", email="wagiminator@web.de" },
 ]
 maintainers = [
     { name="Stefan Wagner", email="wagiminator@web.de" },
 ]
-description = "USB Programming Tool for STC8H8KxxU Microcontrollers"
 readme = "README.md"
 license = {file = "LICENSE"}
-requires-python = ">=3.8"
-dependencies = [
-    "hid",
-]
-keywords = ["STC", "STC8", "STC8H8K64U", "microcontroller"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
@@ -29,9 +27,9 @@ classifiers = [
 ]
 
 [project.scripts]
-stc8usb = "stc8usb:_main"
+stc8usb = "stc8usb.stc8usb:_main"
 
 [project.urls]
-Homepage = "https://wagiminator.github.io/"
+Homepage   = "https://wagiminator.github.io/"
 Repository = "https://github.com/wagiminator/MCU-Flash-Tools"
-Issues = "https://github.com/wagiminator/MCU-Flash-Tools/issues"
+Issues     = "https://github.com/wagiminator/MCU-Flash-Tools/issues"

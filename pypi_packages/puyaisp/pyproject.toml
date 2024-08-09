@@ -3,22 +3,20 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "puyaisp"
-version = "1.4.0"
+name         = "puyaisp"
+version      = "1.4.1"
+description  = "Programming Tool for PUYA PY32F0xx Microcontrollers"
+keywords     = ["ISP", "PUYA", "PY32F002A", "PY32F003", "PY32F030", "microcontroller"]
+dependencies = ["pyserial"]
+requires-python = ">=3.8"
 authors = [
     { name="Stefan Wagner", email="wagiminator@web.de" },
 ]
 maintainers = [
     { name="Stefan Wagner", email="wagiminator@web.de" },
 ]
-description = "Programming Tool for PUYA PY32F0xx Microcontrollers"
 readme = "README.md"
 license = {file = "LICENSE"}
-requires-python = ">=3.8"
-dependencies = [
-    "pyserial",
-]
-keywords = ["PUYA", "PY32F002A", "PY32F003", "PY32F030", "microcontroller"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Programming Language :: Python :: 3",
@@ -29,9 +27,9 @@ classifiers = [
 ]
 
 [project.scripts]
-puyaisp = "puyaisp:_main"
+puyaisp = "puyaisp.puyaisp:_main"
 
 [project.urls]
-Homepage = "https://wagiminator.github.io/"
+Homepage   = "https://wagiminator.github.io/"
 Repository = "https://github.com/wagiminator/MCU-Flash-Tools"
-Issues = "https://github.com/wagiminator/MCU-Flash-Tools/issues"
+Issues     = "https://github.com/wagiminator/MCU-Flash-Tools/issues"
