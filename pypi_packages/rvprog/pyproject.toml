@@ -3,22 +3,20 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "rvprog"
-version = "1.5.0"
+name         = "rvprog"
+version      = "1.6.0"
+description  = "Programming Tool for CH32L, CH32V, and CH32X Microcontrollers with WCH-LinkE"
+keywords     = ["WCH", "CH552", "CH32V003", "CH32X035", "RISC-V", "microcontroller"]
+dependencies = ["pyusb"]
+requires-python = ">=3.8"
 authors = [
     { name="Stefan Wagner", email="wagiminator@web.de" },
 ]
 maintainers = [
     { name="Stefan Wagner", email="wagiminator@web.de" },
 ]
-description = "Programming Tool for WCH-LinkE and CH32Vxxx and CH32Xxxx"
 readme = "README.md"
 license = {file = "LICENSE"}
-requires-python = ">=3.8"
-dependencies = [
-    "pyusb",
-]
-keywords = ["WCH", "CH552", "CH32V003", "CH32X035", "RISC-V", "microcontroller"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Programming Language :: Python :: 3",
@@ -29,9 +27,9 @@ classifiers = [
 ]
 
 [project.scripts]
-rvprog = "rvprog:_main"
+rvprog = "rvprog.rvprog:_main"
 
 [project.urls]
-Homepage = "https://wagiminator.github.io/"
+Homepage   = "https://wagiminator.github.io/"
 Repository = "https://github.com/wagiminator/MCU-Flash-Tools"
-Issues = "https://github.com/wagiminator/MCU-Flash-Tools/issues"
+Issues     = "https://github.com/wagiminator/MCU-Flash-Tools/issues"

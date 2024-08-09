@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
-# Project:   rvprog - Programming Tool for WCH-LinkE and CH32Vxxx and CH32Xxxx.
-# Version:   v1.5
+# Project:   rvprog - Programming Tool for WCH RISC-V Microcontrollers with WCH-LinkE
+# Version:   v1.6
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -13,7 +13,7 @@
 # Simple Python tool for flashing CH32V and CH32X microcontrollers using the WCH-LinkE
 # or compatible programmers/debuggers. The code is based on CNLohr's minichlink.
 # Currently supports: CH32V003, CH32V103, CH32V203, CH32V208, CH32V303, CH32V305, 
-#                     CH32V307, CH32X033, CH32X035.
+#                     CH32V307, CH32X033, CH32X035, CH32L103.
 #
 # References:
 # -----------
@@ -36,11 +36,11 @@
 # Connect the WCH-LinkE to your PC and to your CH32Vxxx board. The WCH-LinkE must be 
 # in LinkRV mode (blue LED off)! If not, run: python rvprog.py -v
 # Run:
-# - python3 rvprog.py [-h] [-a] [-v] [-b] [-u] [-l] [-e] [-G] [-R] [-f FLASH]
+# - rvprog.py [-h] [-a] [-v] [-b] [-u] [-l] [-e] [-G] [-R] [-f FLASH]
 #   -h, --help                show help message and exit
 #   -a, --armmode             switch WCH-Link to ARM mode
 #   -v, --rvmode              switch WCH-Link to RISC-V mode
-#   -b, --unbrick             unbrick chip (CH32V003 only)
+#   -b, --unbrick             unbrick chip (power cycle erase)
 #   -u, --unlock              unlock chip (remove read protection)
 #   -l, --lock                lock chip (set read protection)
 #   -e, --erase               perform a whole chip erase
@@ -64,10 +64,10 @@ import argparse
 
 def _main():
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Minimal command line interface for CH32Vxxx programming')
+    parser = argparse.ArgumentParser(description='Minimal command line interface for WCH-LinkE')
     parser.add_argument('-a', '--armmode',  action='store_true', help='switch WCH-LinkE to ARM mode')
     parser.add_argument('-v', '--rvmode',   action='store_true', help='switch WCH-LinkE to RISC-V mode')
-    parser.add_argument('-b', '--unbrick',  action='store_true', help='unbrick chip (CH32V003 only)')
+    parser.add_argument('-b', '--unbrick',  action='store_true', help='unbrick chip (power cycle erase)')
     parser.add_argument('-u', '--unlock',   action='store_true', help='unlock chip (remove read protection)')
     parser.add_argument('-l', '--lock',     action='store_true', help='lock chip (set read protection)')
     parser.add_argument('-e', '--erase',    action='store_true', help='perform a whole chip erase')
@@ -228,10 +228,11 @@ class Programmer:
 
             # Success
             self.chipname = self.device['name']
+            for f in FAMILIES:
+                if f['id'] == self.chipseries:
+                    self.family = f
             success = 1
             break
-        if success == 0:
-            raise Exception('Failed to connect to target MCU')
 
         # Read some chip data
         reply = self.sendcommand((0x81, 0x11, 0x01, self.chipmark))
@@ -270,23 +271,13 @@ class Programmer:
 
     # Lock MCU (set read protection)
     def lock(self):
-        if self.chipseries == 0x00:
-            self.sendcommand(b'\x81\x06\x08\x03\xf7\xff\xff\xff\xff\xff\xff')
-        elif self.chipseries == 0x25 or self.chipseries == 0x03:
-            self.sendcommand(b'\x81\x06\x08\x03\xff\xff\xff\xff\xff\xff\xff')
-        elif self.chipseries == 0x20 or self.chipseries == 0x30:
-            self.sendcommand(b'\x81\x06\x08\x03\x3f\xff\xff\xff\xff\xff\xff')
+        self.sendcommand(b'\x81\x06\x08\x03' + self.family['optbytes'])
 
     # Unlock MCU (remove read protection -> erase chip!!!)
     def unlock(self):
         reply = self.sendcommand(b'\x81\x06\x01\x01')
         if reply[3] == 0x01:
-            if self.chipseries == 0x00:
-                self.sendcommand(b'\x81\x06\x08\x02\xf7\xff\xff\xff\xff\xff\xff')
-            elif self.chipseries == 0x25 or self.chipseries == 0x03:
-                self.sendcommand(b'\x81\x06\x08\x02\xff\xff\xff\xff\xff\xff\xff')
-            elif self.chipseries == 0x20 or self.chipseries == 0x30:
-                self.sendcommand(b'\x81\x06\x08\x02\x3f\xff\xff\xff\xff\xff\xff')
+            self.sendcommand(b'\x81\x06\x08\x02' + self.family['optbytes'])
 
     # Perform a whole chip erase
     def erase(self):
@@ -365,7 +356,7 @@ class Programmer:
     def flash_data(self, data):
         if len(data) > self.flashsize:
             raise Exception('Not enough memory')
-        self.writebinaryblob(CH_CODE_BASE, self.device['block-size'], self.device['loader'], data)
+        self.writebinaryblob(CH_CODE_BASE, self.family['block-size'], self.family['loader'], data)
 
 # ===================================================================================
 # Device Constants
@@ -516,50 +507,102 @@ LOADER_X035 = \
     +b"\x62\x47\xb2\x87\xe3\xe8\xe6\xfc\xb7\x27\x00\x20\x98\x4b\xf2\x47" \
     +b"\xe3\x09\xf7\xfa\x41\x45\x85\xbf"
 
+LOADER_L103 = \
+     b"\x01\x11\x02\xce\x93\x77\x15\x00\x99\xcf\xb7\x06\x67\x45\xb7\x27" \
+    +b"\x02\x40\x93\x86\x36\x12\x37\x97\xef\xcd\xd4\xc3\x13\x07\xb7\x9a" \
+    +b"\xd8\xc3\xd4\xd3\xd8\xd3\x93\x77\x25\x00\x9d\xc7\xb7\x27\x02\x40" \
+    +b"\x98\x4b\xad\x66\x37\x38\x00\x40\x13\x67\x47\x00\x98\xcb\x98\x4b" \
+    +b"\x93\x86\xa6\xaa\x13\x67\x07\x04\x98\xcb\xd8\x47\x05\x8b\x63\x16" \
+    +b"\x07\x10\x98\x4b\x6d\x9b\x98\xcb\x93\x77\x45\x00\xa9\xcb\x93\x07" \
+    +b"\xf6\x0f\xa1\x83\x2e\xc6\x2d\x68\x81\x76\x3e\xca\xb7\x08\x02\x00" \
+    +b"\xb7\x27\x02\x40\x37\x33\x00\x40\x13\x08\xa8\xaa\xfd\x16\x98\x4b" \
+    +b"\x33\x67\x17\x01\x98\xcb\x32\x47\xd8\xcb\x98\x4b\x13\x67\x07\x04" \
+    +b"\x98\xcb\xd8\x47\x05\x8b\x69\xe7\x98\x4b\x75\x8f\x98\xcb\x32\x47" \
+    +b"\x13\x07\x07\x10\x3a\xc6\x52\x47\x7d\x17\x3a\xca\x69\xfb\x93\x77" \
+    +b"\x85\x00\xf1\xcf\x93\x07\xf6\x0f\x2e\xc6\xa1\x83\x3e\xca\x37\x27" \
+    +b"\x02\x40\x1c\x4b\xc1\x66\x2d\x68\xd5\x8f\x1c\xcb\xb7\x16\x00\x20" \
+    +b"\xb7\x27\x02\x40\x37\x03\x08\x00\x13\x0e\x00\x04\xb7\x0e\x04\x00" \
+    +b"\xb7\x38\x00\x40\x13\x08\xa8\xaa\x98\x4b\x33\x67\x67\x00\x98\xcb" \
+    +b"\xd8\x47\x05\x8b\x75\xff\x32\x47\x36\x8f\x3a\xc8\x72\xcc\x42\x47" \
+    +b"\x03\x2f\x0f\x00\x91\x06\x23\x20\xe7\x01\x98\x4b\x33\x67\xd7\x01" \
+    +b"\x98\xcb\xd8\x47\x05\x8b\x21\xeb\x42\x47\x36\x8f\x11\x07\x3a\xc8" \
+    +b"\x62\x47\x7d\x17\x3a\xcc\x61\xff\x32\x47\xd8\xcb\x98\x4b\x13\x67" \
+    +b"\x07\x04\x98\xcb\xd8\x47\x05\x8b\x15\xeb\xd8\x47\x41\x8b\x15\xcb" \
+    +b"\xd8\x47\xb7\x06\xf3\xff\xfd\x16\x13\x67\x07\x01\xd8\xc7\x98\x4b" \
+    +b"\x21\x45\x75\x8f\x98\xcb\x05\x61\x02\x90\x23\x20\xd8\x00\xf5\xb5" \
+    +b"\x23\x20\x03\x01\x3d\xb7\x23\xa0\x08\x01\x65\xb7\x23\xa0\x08\x01" \
+    +b"\xd1\xb7\x32\x47\x13\x07\x07\x10\x3a\xc6\x52\x47\x7d\x17\x3a\xca" \
+    +b"\x25\xf7\x98\x4b\xb7\x06\xf3\xff\xfd\x16\x75\x8f\x98\xcb\x41\x89" \
+    +b"\x19\xe1\x01\x45\xc9\xb7\x2e\xc6\x0d\x06\x02\xca\x09\x82\x32\xcc" \
+    +b"\xb7\x17\x00\x20\x98\x43\x13\x86\x47\x00\xd2\x47\xb2\x46\x8a\x07" \
+    +b"\xb6\x97\x9c\x43\x63\x18\xf7\x02\xd2\x47\x32\x47\x8a\x07\xba\x97" \
+    +b"\x98\x43\xf2\x47\xba\x97\x3e\xce\xd2\x47\x85\x07\x3e\xca\xd2\x46" \
+    +b"\x62\x47\xb2\x87\xe3\xe8\xe6\xfc\xb7\x27\x00\x20\x98\x4b\xf2\x47" \
+    +b"\xe3\x09\xf7\xfa\x41\x45\x85\xbf"
+
 # ===================================================================================
 # Device definitions
 # ===================================================================================
 
 DEVICES = [
-    {'name': 'CH32V003J4M6', 'id': 0x0033, 'block-size':  64, 'loader': LOADER_V003},
-    {'name': 'CH32V003A4M6', 'id': 0x0032, 'block-size':  64, 'loader': LOADER_V003},
-    {'name': 'CH32V003F4U6', 'id': 0x0031, 'block-size':  64, 'loader': LOADER_V003},
-    {'name': 'CH32V003F4P6', 'id': 0x0030, 'block-size':  64, 'loader': LOADER_V003},
+    {'name': 'CH32V003F4P6', 'id': 0x0030},
+    {'name': 'CH32V003F4U6', 'id': 0x0031},
+    {'name': 'CH32V003A4M6', 'id': 0x0032},
+    {'name': 'CH32V003J4M6', 'id': 0x0033},
 
-    {'name': 'CH32V103',     'id': 0x2500, 'block-size': 128, 'loader': LOADER_V103},
+    {'name': 'CH32V103',     'id': 0x2500},
 
-    {'name': 'CH32V203C8U6', 'id': 0x2030, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V203C8T6', 'id': 0x2031, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V203K8T6', 'id': 0x2032, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V203C6T6', 'id': 0x2033, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V203RBT6', 'id': 0x2034, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V203K6T6', 'id': 0x2035, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V203G6U6', 'id': 0x2036, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V203F6P6', 'id': 0x2037, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V203F8P6', 'id': 0x203a, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V203G8R6', 'id': 0x203b, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V208WBU6', 'id': 0x2080, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V208RBT6', 'id': 0x2081, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V208CBU6', 'id': 0x2082, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V208GBU6', 'id': 0x2083, 'block-size': 256, 'loader': LOADER_V203},
+    {'name': 'CH32V203C8U6', 'id': 0x2030},
+    {'name': 'CH32V203C8T6', 'id': 0x2031},
+    {'name': 'CH32V203K8T6', 'id': 0x2032},
+    {'name': 'CH32V203C6T6', 'id': 0x2033},
+    {'name': 'CH32V203RBT6', 'id': 0x2034},
+    {'name': 'CH32V203K6T6', 'id': 0x2035},
+    {'name': 'CH32V203G6U6', 'id': 0x2036},
+    {'name': 'CH32V203F6P6', 'id': 0x2037},
+    {'name': 'CH32V203F8P6', 'id': 0x203a},
+    {'name': 'CH32V203G8R6', 'id': 0x203b},
+    {'name': 'CH32V203F8U6', 'id': 0x203e},
+    {'name': 'CH32V208WBU6', 'id': 0x2080},
+    {'name': 'CH32V208RBT6', 'id': 0x2081},
+    {'name': 'CH32V208CBU6', 'id': 0x2082},
+    {'name': 'CH32V208GBU6', 'id': 0x2083},
 
-    {'name': 'CH32V303VCT6', 'id': 0x3030, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V303RCT6', 'id': 0x3031, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V303RBT6', 'id': 0x3033, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V303CBT6', 'id': 0x3034, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V305RBT6', 'id': 0x3050, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V305FBP6', 'id': 0x3052, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V307VCT6', 'id': 0x3070, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V307RCT6', 'id': 0x3071, 'block-size': 256, 'loader': LOADER_V203},
-    {'name': 'CH32V307WCU6', 'id': 0x3073, 'block-size': 256, 'loader': LOADER_V203},
+    {'name': 'CH32V303VCT6', 'id': 0x3030},
+    {'name': 'CH32V303RCT6', 'id': 0x3031},
+    {'name': 'CH32V303RBT6', 'id': 0x3032},
+    {'name': 'CH32V303CBT6', 'id': 0x3033},
+    {'name': 'CH32V305RBT6', 'id': 0x3050},
+    {'name': 'CH32V305FBP6', 'id': 0x3052},
+    {'name': 'CH32V305GBU6', 'id': 0x305b},
+    {'name': 'CH32V307VCT6', 'id': 0x3070},
+    {'name': 'CH32V307RCT6', 'id': 0x3071},
+    {'name': 'CH32V307WCU6', 'id': 0x3073},
 
-    {'name': 'CH32X033F8P6', 'id': 0x035a, 'block-size': 256, 'loader': LOADER_X035},
-    {'name': 'CH32X035R8T6', 'id': 0x0350, 'block-size': 256, 'loader': LOADER_X035},
-    {'name': 'CH32X035C8T6', 'id': 0x0351, 'block-size': 256, 'loader': LOADER_X035},
-    {'name': 'CH32X035F8U6', 'id': 0x035e, 'block-size': 256, 'loader': LOADER_X035},
-    {'name': 'CH32X035G8U6', 'id': 0x0356, 'block-size': 256, 'loader': LOADER_X035},
-    {'name': 'CH32X035G8R6', 'id': 0x035b, 'block-size': 256, 'loader': LOADER_X035},
-    {'name': 'CH32X035F7P6', 'id': 0x0357, 'block-size': 256, 'loader': LOADER_X035}
+    {'name': 'CH32X033F8P6', 'id': 0x035a},
+    {'name': 'CH32X035R8T6', 'id': 0x0350},
+    {'name': 'CH32X035C8T6', 'id': 0x0351},
+    {'name': 'CH32X035G8U6', 'id': 0x0356},
+    {'name': 'CH32X035F7P6', 'id': 0x0357},
+    {'name': 'CH32X035G8R6', 'id': 0x035b},
+    {'name': 'CH32X035F8U6', 'id': 0x035e},
+
+    {'name': 'CH32L103C8U6', 'id': 0x1030},
+    {'name': 'CH32L103C8T6', 'id': 0x1031},
+    {'name': 'CH32L103K8U6', 'id': 0x1032},
+    {'name': 'CH32L103F7P6', 'id': 0x1037},
+    {'name': 'CH32L103F8P6', 'id': 0x103a},
+    {'name': 'CH32L103G8R6', 'id': 0x103b},
+    {'name': 'CH32L103F8U6', 'id': 0x103d}
+]
+
+FAMILIES = [
+    {'id': 0x00, 'block-size':  64, 'loader': LOADER_V003, 'optbytes': b'\xf7\xff\xff\xff\xff\xff\xff'},
+    {'id': 0x25, 'block-size': 128, 'loader': LOADER_V103, 'optbytes': b'\xff\xff\xff\xff\xff\xff\xff'},
+    {'id': 0x20, 'block-size': 256, 'loader': LOADER_V203, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff'},
+    {'id': 0x30, 'block-size': 256, 'loader': LOADER_V203, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff'},
+    {'id': 0x03, 'block-size': 256, 'loader': LOADER_X035, 'optbytes': b'\xff\xff\xff\xff\xff\xff\xff'},
+    {'id': 0x10, 'block-size': 256, 'loader': LOADER_L103, 'optbytes': b'\xff\xff\xff\xff\xff\xff\xff'}
 ]
 
 # ===================================================================================

@@ -20,7 +20,7 @@ Windows users in particular may also need to install [libusb](https://github.com
 
 ## chprog
 ### Description
-With this tool, almost all WCH microcontrollers (CH5xx, CH32Fxxx, CH32Vxxx, CH32Xxxx, and CH32Lxxx) which have a factory-builtin bootloader (v2.x.x) can be flashed via USB.
+With this tool, almost all WCH microcontrollers (CH5xx, CH6xx, CH32Fxxx, CH32Vxxx, CH32Xxxx, and CH32Lxxx) which have a factory-builtin bootloader (v2.x.x) can be flashed via USB.
 
 ### Preparations
 On Linux you do not need to install a driver for the USB bootloader. However, by default Linux will not expose enough permission to upload your code. In order to fix this, open a terminal and run the following commands:
@@ -31,7 +31,7 @@ echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1a86", ATTR{idProduct}=="55e0", MODE="6
 sudo udevadm control --reload-rules
 ```
 
-For Windows, you need the [CH372 driver](http://www.wch-ic.com/downloads/CH372DRV_EXE.html). Alternatively, you can also use the [Zadig Tool](https://zadig.akeo.ie/) to install the correct driver. Here, click "Options" -> "List All Devices" and select the USB module. Then install the libusb-win32 driver. To do this, the board must be connected and the microcontroller must be in bootloader mode.
+For Windows, you need the [CH372 driver](http://www.wch-ic.com/downloads/CH372DRV_EXE.html). Alternatively, you can also use the [Zadig](https://zadig.akeo.ie/) tool to install the correct driver. Here, click "Options" -> "List All Devices" and select the USB module. Then install the libusb-win32 driver. To do this, the board must be connected and the microcontroller must be in bootloader mode.
 
 ### Usage as a Script
 The bootloader must be started manually for new uploads. To do this, the board must first be disconnected from the USB port and all voltage sources. Now press the BOOT button and keep it pressed while reconnecting the board to the USB port of your PC. The chip now starts in bootloader mode, the BOOT button can be released and new firmware can be uploaded via USB. Alternatively, you can leave the board connected to the USB port, press and hold the BOOT button, press and release the RESET button and then release the BOOT button to enter the bootloader mode. If there is no BOOT button on the board, look at the datasheet to find out which pin needs to be pulled to which voltage level for the microcontroller to go into boot mode.
@@ -46,7 +46,7 @@ Take a look [here](https://pypi.org/project/chprog/).
 
 ## rvprog
 ### Description
-With this tool, the WCH RISC-V microcontrollers CH32Vxxx and CH32Xxxx can be programmed with the [WCH-LinkE](http://www.wch-ic.com/products/WCH-Link.html) (pay attention to the "E" in the name) via its serial debug interface.
+With this tool, the WCH RISC-V microcontrollers CH32Lxxx, CH32Vxxx, and CH32Xxxx can be programmed with the [WCH-LinkE](http://www.wch-ic.com/products/WCH-Link.html) (pay attention to the "E" in the name) via its serial debug interface.
 
 ### Preparations
 To use the WCH-Link on Linux, you need to grant access permissions beforehand by executing the following commands:
@@ -56,7 +56,7 @@ echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1a86", ATTR{idProduct}=="8012", MODE="6
 sudo udevadm control --reload-rules
 ```
 
-On Windows, if you need to you can install the WinUSB driver over the WCH interface 1.
+On Windows, if you need to you can install the WinUSB driver over the WCH interface 1 using the [Zadig](https://zadig.akeo.ie/) tool.
 
 ### Usage as a Script
 To upload firmware, you should make the following connections to the WCH-LinkE (SWCLK is not present on the CH32V003 and therefore does not need to be connected):
@@ -85,7 +85,7 @@ Optional arguments:
   -h, --help                show help message and exit
   -a, --armmode             switch WCH-Link to ARM mode
   -v, --rvmode              switch WCH-Link to RISC-V mode
-  -b, --unbrick             unbrick chip (CH32V003 only)
+  -b, --unbrick             unbrick chip (power cycle erase)
   -u, --unlock              unlock chip (remove read protection)
   -l, --lock                lock chip (set read protection)
   -e, --erase               perform a whole chip erase

@@ -1,6 +1,6 @@
-# rvprog - Programming Tool for WCH-LinkE and CH32Vxxx and CH32Xxxx
+# Programming Tool for CH32L, CH32V, and CH32X Microcontrollers with WCH-LinkE
 ## Description
-With this tool, the WCH RISC-V microcontrollers CH32Vxxx and CH32Xxxx can be programmed with the [WCH-LinkE](http://www.wch-ic.com/products/WCH-Link.html) (pay attention to the "E" in the name) via its serial debug interface.
+With this tool, the WCH RISC-V microcontrollers CH32Lxxx, CH32Vxxx, and CH32Xxxx can be programmed with the [WCH-LinkE](http://www.wch-ic.com/products/WCH-Link.html) (pay attention to the "E" in the name) via its serial debug interface.
 
 ## Preparations
 To use the WCH-Link on Linux, you need to grant access permissions beforehand by executing the following commands:
@@ -10,12 +10,10 @@ echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1a86", ATTR{idProduct}=="8012", MODE="6
 sudo udevadm control --reload-rules
 ```
 
-On Windows, if you need to you can install the WinUSB driver over the WCH interface 1 using the [Zadig Tool](https://zadig.akeo.ie/).
+On Windows, if you need to you can install the WinUSB driver over the WCH interface 1 using the [Zadig](https://zadig.akeo.ie/) tool.
 
 ## Installation
-- Install [Python3](https://www.pythontutorial.net/getting-started/install-python/).
-- Install [pip](https://pip.pypa.io/en/stable/installation/).
-- Install rvprog: 
+Ensure that the [prerequisites](https://packaging.python.org/en/latest/tutorials/installing-packages/) for installing Python packages are met. Then execute the following command in the command line:
 
 ```
 pip install rvprog
@@ -46,9 +44,9 @@ Usage: rvprog [-h] [-a] [-v] [-b] [-u] [-l] [-e] [-G] [-R] [-f FLASH]
 
 Optional arguments:
   -h, --help                show help message and exit
-  -a, --armmode             switch WCH-Link to ARM mode
-  -v, --rvmode              switch WCH-Link to RISC-V mode
-  -b, --unbrick             unbrick chip
+  -a, --armmode             switch WCH-LinkE to ARM mode
+  -v, --rvmode              switch WCH-LinkE to RISC-V mode
+  -b, --unbrick             unbrick chip (power cycle erase)
   -u, --unlock              unlock chip (remove read protection)
   -l, --lock                lock chip (set read protection)
   -e, --erase               perform a whole chip erase
