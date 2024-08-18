@@ -1,9 +1,15 @@
-# Programming Tool for CH32L, CH32V, and CH32X Microcontrollers with WCH-LinkE
+# Programming Tool for WCH RISC-V Microcontrollers using WCH-LinkE
 ## Description
-With this tool, the WCH RISC-V microcontrollers CH32Lxxx, CH32Vxxx, and CH32Xxxx can be programmed with the [WCH-LinkE](http://www.wch-ic.com/products/WCH-Link.html) (pay attention to the "E" in the name) via its serial debug interface.
+With this open-source platform-independant command-line tool, WCH RISC-V microcontrollers can be programmed using the [WCH-LinkE](http://www.wch-ic.com/products/WCH-Link.html) (pay attention to the "E" in the name) via their serial debug interface.
+
+The tool currently supports the following microcontrollers:
+- CH32V003, CH32V103, CH32V203, CH32V208, CH32V303, CH32V305, CH32V307,
+- CH32X033, CH32X035,
+- CH32L103,
+- CH571, CH573, CH581, CH582, CH583, CH591, CH592.
 
 ## Preparations
-To use the WCH-Link on Linux, you need to grant access permissions beforehand by executing the following commands:
+To use the WCH-LinkE on Linux, you need to grant access permissions beforehand by executing the following commands:
 ```
 echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1a86", ATTR{idProduct}=="8010", MODE="666"' | sudo tee /etc/udev/rules.d/99-WCH-LinkE.rules
 echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1a86", ATTR{idProduct}=="8012", MODE="666"' | sudo tee -a /etc/udev/rules.d/99-WCH-LinkE.rules
@@ -23,13 +29,13 @@ pip install rvprog
 To upload firmware, you should make the following connections to the WCH-LinkE (SWCLK is not present on the CH32V003 and therefore does not need to be connected):
 
 ```
-WCH-LinkE       CH32V/X
-+-------+      +-------+
-|  SWCLK| ---> |SWCLK  |
-|  SWDIO| <--> |SWDIO  |
-|    GND| ---> |GND    |
-|    3V3| ---> |VDD    |
-+-------+      +-------+
+WCH-LinkE      RISC-V MCU
++-------+      +--------+
+|  SWCLK| ---> |SWCLK   |
+|  SWDIO| <--> |SWDIO   |
+|    GND| ---> |GND     |
+|    3V3| ---> |VDD     |
++-------+      +--------+
 ```
 
 If the blue LED on the WCH-LinkE remains illuminated once it is connected to the USB port, it means that the device is currently in ARM mode and must be switched to RISC-V mode initially. There are a few ways to accomplish this:
