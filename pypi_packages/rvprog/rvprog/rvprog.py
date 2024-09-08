@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   rvprog - Programming Tool for WCH RISC-V Microcontrollers with WCH-LinkE
-# Version:   v1.7.1
+# Version:   v1.8
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -10,8 +10,8 @@
 #
 # Description:
 # ------------
-# Simple Python tool for flashing WCH RISC-V microcontrollers using the WCH-LinkE
-# or compatible programmers/debuggers.
+# Simple Python tool for flashing WCH RISC-V microcontrollers using the WCH-LinkE,
+# WCH-LinkW, or compatible programmers/debuggers.
 # Currently supports: CH32V003, CH32V103, CH32V203, CH32V208, CH32V303, CH32V305, 
 #                     CH32V307, CH32X033, CH32X035, CH32L103,
 #                     CH571, CH573, CH581, CH582, CH583, CH591, CH592.
@@ -34,13 +34,13 @@
 # echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1a86", ATTR{idProduct}=="8012", MODE="666"' | sudo tee -a /etc/udev/rules.d/99-WCH-LinkE.rules
 # sudo udevadm control --reload-rules
 #
-# Connect the WCH-LinkE to your PC and to your WCH RISC-V MCU board. The WCH-LinkE
+# Connect the WCH-Link to your PC and to your WCH RISC-V MCU board. The WCH-Link
 # must be in LinkRV mode (blue LED off)! If not, run: python rvprog.py -v
 # Run:
 # - rvprog.py [-h] [-a] [-v] [-b] [-u] [-l] [-e] [-G] [-R] [-f FLASH]
 #   -h, --help                show help message and exit
-#   -a, --armmode             switch WCH-LinkE to ARM mode
-#   -v, --rvmode              switch WCH-LinkE to RISC-V mode
+#   -a, --armmode             switch WCH-Link to ARM mode
+#   -v, --rvmode              switch WCH-Link to RISC-V mode
 #   -b, --unbrick             unbrick chip (power cycle erase)
 #   -u, --unlock              unlock chip (remove read protection)
 #   -l, --lock                lock chip (set read protection)
@@ -65,9 +65,9 @@ import argparse
 
 def _main():
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Minimal command line interface for WCH-LinkE')
-    parser.add_argument('-a', '--armmode',  action='store_true', help='switch WCH-LinkE to ARM mode')
-    parser.add_argument('-v', '--rvmode',   action='store_true', help='switch WCH-LinkE to RISC-V mode')
+    parser = argparse.ArgumentParser(description='Minimal command line interface for WCH-Link')
+    parser.add_argument('-a', '--armmode',  action='store_true', help='switch WCH-Link to ARM mode')
+    parser.add_argument('-v', '--rvmode',   action='store_true', help='switch WCH-Link to RISC-V mode')
     parser.add_argument('-b', '--unbrick',  action='store_true', help='unbrick chip (power cycle erase)')
     parser.add_argument('-u', '--unlock',   action='store_true', help='unlock chip (remove read protection)')
     parser.add_argument('-l', '--lock',     action='store_true', help='lock chip (set read protection)')
@@ -85,12 +85,12 @@ def _main():
     # Switch WCH-Link to RISC-V mode
     try:
         if args.rvmode:
-            print('Searching for WCH-LinkE in ARM mode ...')
+            print('Searching for WCH-Link in ARM mode ...')
             armlink = usb.core.find(idVendor = CH_VENDOR_ID, idProduct = CH_ARM_ID)
             if armlink is None:
-                raise Exception('No WCH-LinkE in ARM mode found!')
-            print('SUCCESS: Found WCH-LinkE in ARM mode.')
-            print('Switching WCH-LinkE to RISC-V mode ...')
+                raise Exception('No WCH-Link in ARM mode found!')
+            print('SUCCESS: Found WCH-Link in ARM mode.')
+            print('Switching WCH-Link to RISC-V mode ...')
             armlink.write(0x02, b'\x81\xff\x01\x52')
             time.sleep(2)
             print('DONE.')
@@ -99,11 +99,11 @@ def _main():
 
     # Establish connection to WCH-Link
     try:
-        print('Searching for WCH-LinkE in RISC-V mode ...')
+        print('Searching for WCH-Link in RISC-V mode ...')
         isp = Programmer()
         print('SUCCESS: Found %s v%s in RISC-V mode.' % (isp.linkname, isp.linkversion))
         if isp.linkvercode < 211:
-            print('WARNING: WCH-LinkE firmware needs to be updated!')
+            print('WARNING: WCH-Link firmware needs to be updated!')
     except Exception as ex:
         sys.stderr.write('ERROR: %s!\n' % str(ex))
         sys.exit(1)
@@ -187,16 +187,19 @@ class Programmer:
         # Find programmer
         self.dev = usb.core.find(idVendor = CH_VENDOR_ID, idProduct = CH_PRODUCT_ID)
         if self.dev is None:
-            raise Exception('WCH-LinkE not found. Check if device is in RISC-V mode')
+            raise Exception('WCH-Link not found. Check if device is in RISC-V mode')
 
         # Clear receive buffers
         self.clearreply()
 
         # Get programmer info
         reply = self.sendcommand(b'\x81\x0d\x01\x01')
-        if not reply[5] == 0x12:
-            raise Exception('Programmer is not a WCH-LinkE')
-        self.linkname    = 'WCH-LinkE'
+        if reply[5]   == 0x05:
+            self.linkname = 'WCH-LinkW'
+        elif reply[5] == 0x12:
+            self.linkname = 'WCH-LinkE'
+        else:
+            raise Exception('Unsupported programmer (code: %d)' % reply[5])
         self.linkdevice  = reply[5]
         self.linkvercode = (reply[3] * 100) + reply[4]
         self.linkversion = '%d.%d' % (reply[3], reply[4])

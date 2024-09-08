@@ -1,6 +1,6 @@
-# Programming Tool for WCH RISC-V Microcontrollers using WCH-LinkE
+# Programming Tool for WCH RISC-V Microcontrollers using WCH-Link
 ## Description
-With this open-source platform-independant command-line tool, WCH RISC-V microcontrollers can be programmed using the [WCH-LinkE](http://www.wch-ic.com/products/WCH-Link.html) (pay attention to the "E" in the name) via their serial debug interface.
+With this open-source platform-independant command-line tool, WCH RISC-V microcontrollers can be programmed using the [WCH-LinkE or WCH-LinkW](http://www.wch-ic.com/products/WCH-Link.html) (pay attention to the "E" or "W" in the name) via their serial debug interface.
 
 The tool currently supports the following microcontrollers:
 - CH32V003, CH32V103, CH32V203, CH32V208, CH32V303, CH32V305, CH32V307,
@@ -8,8 +8,12 @@ The tool currently supports the following microcontrollers:
 - CH32L103,
 - CH571, CH573, CH581, CH582, CH583, CH591, CH592.
 
+The tool currently supports the following programmers:
+- WCH-LinkE,
+- WCH-LinkW.
+
 ## Preparations
-To use the WCH-LinkE on Linux, you need to grant access permissions beforehand by executing the following commands:
+To use the WCH-Link on Linux, you need to grant access permissions beforehand by executing the following commands:
 ```
 echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1a86", ATTR{idProduct}=="8010", MODE="666"' | sudo tee /etc/udev/rules.d/99-WCH-LinkE.rules
 echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1a86", ATTR{idProduct}=="8012", MODE="666"' | sudo tee -a /etc/udev/rules.d/99-WCH-LinkE.rules
@@ -26,19 +30,19 @@ pip install rvprog
 ```
 
 ## Usage
-To upload firmware, you should make the following connections to the WCH-LinkE (SWCLK is not present on the CH32V003 and therefore does not need to be connected):
+To upload firmware, you should make the following connections to the WCH-Link (SWCLK is not present on the CH32V003 and therefore does not need to be connected):
 
 ```
-WCH-LinkE      RISC-V MCU
-+-------+      +--------+
-|  SWCLK| ---> |SWCLK   |
-|  SWDIO| <--> |SWDIO   |
-|    GND| ---> |GND     |
-|    3V3| ---> |VDD     |
-+-------+      +--------+
+WCH-Link      RISC-V MCU
++------+      +--------+
+| SWCLK| ---> |SWCLK   |
+| SWDIO| <--> |SWDIO   |
+|   GND| ---> |GND     |
+|   3V3| ---> |VDD     |
++------+      +--------+
 ```
 
-If the blue LED on the WCH-LinkE remains illuminated once it is connected to the USB port, it means that the device is currently in ARM mode and must be switched to RISC-V mode initially. There are a few ways to accomplish this:
+If the blue LED on the WCH-Link remains illuminated once it is connected to the USB port, it means that the device is currently in ARM mode and must be switched to RISC-V mode initially. There are a few ways to accomplish this:
 - You can utilize the rvprog tool with the -v option (see below).
 - Alternatively, you can select "WCH-LinkRV" in the software provided by WCH, such as MounRiver Studio or WCH-LinkUtility.
 - Another option is to hold down the ModeS button on the device while plugging it into the USB port.
@@ -50,8 +54,8 @@ Usage: rvprog [-h] [-a] [-v] [-b] [-u] [-l] [-e] [-G] [-R] [-f FLASH]
 
 Optional arguments:
   -h, --help                show help message and exit
-  -a, --armmode             switch WCH-LinkE to ARM mode
-  -v, --rvmode              switch WCH-LinkE to RISC-V mode
+  -a, --armmode             switch WCH-Link to ARM mode
+  -v, --rvmode              switch WCH-Link to RISC-V mode
   -b, --unbrick             unbrick chip (power cycle erase)
   -u, --unlock              unlock chip (remove read protection)
   -l, --lock                lock chip (set read protection)

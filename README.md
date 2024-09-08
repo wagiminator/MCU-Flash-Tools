@@ -46,7 +46,7 @@ Take a look [here](https://pypi.org/project/chprog/).
 
 ## rvprog
 ### Description
-With this tool, the WCH RISC-V microcontrollers CH32Lxxx, CH32Vxxx, and CH32Xxxx can be programmed with the [WCH-LinkE](http://www.wch-ic.com/products/WCH-Link.html) (pay attention to the "E" in the name) via its serial debug interface.
+With this tool, the WCH RISC-V microcontrollers CH32Lxxx, CH32Vxxx, and CH32Xxxx can be programmed with the [WCH-LinkE or WCH-LinkW](http://www.wch-ic.com/products/WCH-Link.html) (pay attention to the "E" or "W" in the name) via its serial debug interface.
 
 ### Preparations
 To use the WCH-Link on Linux, you need to grant access permissions beforehand by executing the following commands:
@@ -59,19 +59,19 @@ sudo udevadm control --reload-rules
 On Windows, if you need to you can install the WinUSB driver over the WCH interface 1 using the [Zadig](https://zadig.akeo.ie/) tool.
 
 ### Usage as a Script
-To upload firmware, you should make the following connections to the WCH-LinkE (SWCLK is not present on the CH32V003 and therefore does not need to be connected):
+To upload firmware, you should make the following connections to the WCH-Link (SWCLK is not present on the CH32V003 and therefore does not need to be connected):
 
 ```
-WCH-LinkE       CH32V/X
-+-------+      +-------+
-|  SWCLK| ---> |SWCLK  |
-|  SWDIO| <--> |SWDIO  |
-|    GND| ---> |GND    |
-|    3V3| ---> |VDD    |
-+-------+      +-------+
+WCH-Link      RISC-V MCU
++------+      +--------+
+| SWCLK| ---> |SWCLK   |
+| SWDIO| <--> |SWDIO   |
+|   GND| ---> |GND     |
+|   3V3| ---> |VDD     |
++------+      +--------+
 ```
 
-If the blue LED on the WCH-LinkE remains illuminated once it is connected to the USB port, it means that the device is currently in ARM mode and must be switched to RISC-V mode initially. There are a few ways to accomplish this:
+If the blue LED on the WCH-Link remains illuminated once it is connected to the USB port, it means that the device is currently in ARM mode and must be switched to RISC-V mode initially. There are a few ways to accomplish this:
 - You can utilize the rvprog tool with the -v option (see below).
 - Alternatively, you can select "WCH-LinkRV" in the software provided by WCH, such as MounRiver Studio or WCH-LinkUtility.
 - Another option is to hold down the ModeS button on the device while plugging it into the USB port.
