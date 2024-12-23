@@ -1,6 +1,6 @@
 # Programming Tool for WCH RISC-V Microcontrollers using WCH-Link
 ## Description
-With this open-source platform-independant command-line tool, WCH RISC-V microcontrollers can be programmed using the [WCH-LinkE or WCH-LinkW](http://www.wch-ic.com/products/WCH-Link.html) (pay attention to the "E" or "W" in the name) via their serial debug interface.
+With this open-source platform-independant command-line tool, WCH RISC-V microcontrollers can be programmed using a RISC-V compatible [WCH-Link](http://www.wch-ic.com/products/WCH-Link.html) via their serial debug interface.
 
 The tool currently supports the following microcontrollers:
 - CH32V003, CH32V103, CH32V203, CH32V208, CH32V303, CH32V305, CH32V307,
@@ -9,8 +9,10 @@ The tool currently supports the following microcontrollers:
 - CH571, CH573, CH581, CH582, CH583, CH591, CH592.
 
 The tool currently supports the following programmers:
+- WCH-LinkB,
 - WCH-LinkE,
-- WCH-LinkW.
+- WCH-LinkW,
+- other compatible programmers.
 
 ## Preparations
 To use the WCH-Link on Linux, you need to grant access permissions beforehand by executing the following commands:

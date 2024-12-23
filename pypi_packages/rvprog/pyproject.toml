@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name         = "rvprog"
-version      = "1.8.0"
-description  = "Programming Tool for WCH RISC-V Microcontrollers using WCH-LinkE"
+version      = "1.9.0"
+description  = "Programming Tool for WCH RISC-V Microcontrollers using WCH-Link"
 keywords     = ["WCH", "CH552", "CH32V003", "CH32X035", "RISC-V", "microcontroller"]
 dependencies = ["pyusb"]
 requires-python = ">=3.6"

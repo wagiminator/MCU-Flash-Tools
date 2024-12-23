@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   rvprog - Programming Tool for WCH RISC-V Microcontrollers with WCH-LinkE
-# Version:   v1.8
+# Version:   v1.9
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -11,7 +11,7 @@
 # Description:
 # ------------
 # Simple Python tool for flashing WCH RISC-V microcontrollers using the WCH-LinkE,
-# WCH-LinkW, or compatible programmers/debuggers.
+# WCH-LinkW, WCH-LinkB, or compatible programmers/debuggers.
 # Currently supports: CH32V003, CH32V103, CH32V203, CH32V208, CH32V303, CH32V305, 
 #                     CH32V307, CH32X033, CH32X035, CH32L103,
 #                     CH571, CH573, CH581, CH582, CH583, CH591, CH592.
@@ -194,12 +194,20 @@ class Programmer:
 
         # Get programmer info
         reply = self.sendcommand(b'\x81\x0d\x01\x01')
-        if reply[5]   == 0x05:
+        if reply[5]   == 0x01:
+            self.linkname = 'WCH Programmer based on CH549'
+        elif reply[5] == 0x02:
+            self.linkname = 'WCH Programmer based on CH32V307'
+        elif reply[5] == 0x03:
+            self.linkname = 'WCH Programmer based on CH32V203'
+        elif reply[5] == 0x04:
+            self.linkname = 'WCH-LinkB'
+        elif reply[5] == 0x05:
             self.linkname = 'WCH-LinkW'
         elif reply[5] == 0x12:
             self.linkname = 'WCH-LinkE'
         else:
-            raise Exception('Unsupported programmer (code: %d)' % reply[5])
+            self.linkname = 'Unknown WCH Programmer (code: %d)' % reply[5]
         self.linkdevice  = reply[5]
         self.linkvercode = (reply[3] * 100) + reply[4]
         self.linkversion = '%d.%d' % (reply[3], reply[4])
