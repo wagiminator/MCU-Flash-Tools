@@ -3,7 +3,8 @@
 With this open-source platform-independant command-line tool, WCH RISC-V microcontrollers can be programmed using a RISC-V compatible [WCH-Link](http://www.wch-ic.com/products/WCH-Link.html) via their serial debug interface.
 
 The tool currently supports the following microcontrollers:
-- CH32V003, CH32V103, CH32V203, CH32V208, CH32V303, CH32V305, CH32V307,
+- CH32V002, CH32V003, CH32V004, CH32V005, CH32V006, CH32V007,
+- CH32V103, CH32V203, CH32V208, CH32V303, CH32V305, CH32V307,
 - CH32X033, CH32X035,
 - CH32L103,
 - CH571, CH573, CH581, CH582, CH583, CH591, CH592.
@@ -32,7 +33,7 @@ pip install rvprog
 ```
 
 ## Usage
-To upload firmware, you should make the following connections to the WCH-Link (SWCLK is not present on the CH32V003 and therefore does not need to be connected):
+To upload firmware, you should make the following connections to the WCH-Link (SWCLK is not present on CH32V00x and therefore does not need to be connected):
 
 ```
 WCH-Link      RISC-V MCU
@@ -62,8 +63,8 @@ Optional arguments:
   -u, --unlock              unlock chip (remove read protection)
   -l, --lock                lock chip (set read protection)
   -e, --erase               perform a whole chip erase
-  -G, --pingpio             make nRST pin a GPIO pin (CH32V003 only)
-  -R, --pinreset            make nRST pin a reset pin (CH32V003 only)
+  -G, --pingpio             make PD7 a GPIO pin (CH32V00x only)
+  -R, --pinreset            make PD7 a reset pin (CH32V00x only)
   -f FLASH, --flash FLASH   write BIN file to flash
 
 Example:

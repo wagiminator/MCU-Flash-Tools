@@ -59,7 +59,7 @@ sudo udevadm control --reload-rules
 On Windows, if you need to you can install the WinUSB driver over the WCH interface 1 using the [Zadig](https://zadig.akeo.ie/) tool.
 
 ### Usage as a Script
-To upload firmware, you should make the following connections to the WCH-Link (SWCLK is not present on the CH32V003 and therefore does not need to be connected):
+To upload firmware, you should make the following connections to the WCH-Link (SWCLK is not present on CH32V00x and therefore does not need to be connected):
 
 ```
 WCH-Link      RISC-V MCU
@@ -89,8 +89,8 @@ Optional arguments:
   -u, --unlock              unlock chip (remove read protection)
   -l, --lock                lock chip (set read protection)
   -e, --erase               perform a whole chip erase
-  -G, --pingpio             make nRST pin a GPIO pin (CH32V003 only)
-  -R, --pinreset            make nRST pin a reset pin (CH32V003 only)
+  -G, --pingpio             make PD7 a GPIO pin (CH32V00x only)
+  -R, --pinreset            make PD7 a reset pin (CH32V00x only)
   -f FLASH, --flash FLASH   write BIN file to flash
 
 Example:
