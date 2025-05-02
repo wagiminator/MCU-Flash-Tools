@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   chprog - USB Programming Tool for WCH Microcontrollers
-# Version:   v2.5
+# Version:   v2.5.2
 # Year:      2022
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -292,6 +292,7 @@ DEVICES = [
     {'name': 'CH568', 'id': 0x1168, 'code_size': 196608, 'data_size': 32768},
     {'name': 'CH569', 'id': 0x1169, 'code_size': 458752, 'data_size': 32768},
 
+    {'name': 'CH570', 'id': 0x1370, 'code_size': 245760, 'data_size':     0},
     {'name': 'CH571', 'id': 0x1371, 'code_size': 196608, 'data_size': 32768},
     {'name': 'CH573', 'id': 0x1373, 'code_size': 458752, 'data_size': 32768},
     {'name': 'CH577', 'id': 0x1377, 'code_size': 131072, 'data_size':  2048},
@@ -373,8 +374,8 @@ DEVICES = [
     {'name': 'CH32L103F8U6', 'id': 0x253d, 'code_size':  65536, 'data_size': 0}
 ]
 
-LASTWRITELIST = (0x12, 0x14, 0x15, 0x16, 0x17, 0x18,0x19, 0x20, 0x23, 0x24, 0x25)
-WPREMOVELIST  = (0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x23, 0x24, 0x25)
+LASTWRITELIST = (0x12, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x22, 0x23, 0x24, 0x25)
+WPREMOVELIST  = (0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x22, 0x23, 0x24, 0x25)
 
 # ===================================================================================
 
