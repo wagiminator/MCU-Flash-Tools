@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name         = "chprog"
-version      = "2.5.2"
+version      = "2.5.3"
 description  = "USB Programming Tool for WCH Microcontrollers"
 keywords     = ["ISP", "WCH", "CH552", "CH32V003", "CH32V203", "CH32X035", "microcontroller"]
 dependencies = ["pyusb"]

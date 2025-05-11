@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   chprog - USB Programming Tool for WCH Microcontrollers
-# Version:   v2.5.2
+# Version:   v2.5.3
 # Year:      2022
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -294,6 +294,7 @@ DEVICES = [
 
     {'name': 'CH570', 'id': 0x1370, 'code_size': 245760, 'data_size':     0},
     {'name': 'CH571', 'id': 0x1371, 'code_size': 196608, 'data_size': 32768},
+    {'name': 'CH572', 'id': 0x1372, 'code_size': 245760, 'data_size':     0},
     {'name': 'CH573', 'id': 0x1373, 'code_size': 458752, 'data_size': 32768},
     {'name': 'CH577', 'id': 0x1377, 'code_size': 131072, 'data_size':  2048},
     {'name': 'CH578', 'id': 0x1378, 'code_size': 163840, 'data_size':  2048},
