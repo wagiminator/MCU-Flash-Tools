@@ -16,6 +16,7 @@
 # Dependencies:
 # -------------
 # - pyserial
+# - hidapi
 #
 # Operating Instructions:
 # -----------------------
@@ -52,11 +53,17 @@
 # Define BAUD rate here, range: 4800 - 1000000, default and recommended: 115200
 PY_BAUD = 115200
 
+# USB HID bootloader defaults
+PY_HID_VID = 0xffff
+PY_HID_PID = 0x0448
+PY_HID_REPORT_SIZE = 64
+
 # Libraries
 import sys
 import time
 import argparse
 import serial
+import hid
 from serial import Serial
 from serial.tools.list_ports import comports
 
@@ -74,6 +81,11 @@ def _main():
     parser.add_argument('-G', '--nrstgpio', action='store_true', help='make nRST pin a GPIO pin')
     parser.add_argument('-R', '--nrstreset',action='store_true', help='make nRST pin a RESET pin')
     parser.add_argument('-f', '--flash',    help='write BIN file to flash and verify')
+    parser.add_argument('--transport', choices=('serial', 'hid'), default='serial', help='bootloader transport')
+    parser.add_argument('--vid',       type=lambda x: int(x, 0), default=PY_HID_VID, help='HID VID')
+    parser.add_argument('--pid',       type=lambda x: int(x, 0), default=PY_HID_PID, help='HID PID')
+    parser.add_argument('--path',      help='hidapi device path')
+    parser.add_argument('--timeout',   type=int, default=1000, help='HID read timeout in ms')
     args = parser.parse_args(sys.argv[1:])
 
     # Check arguments
@@ -83,8 +95,12 @@ def _main():
 
     # Establish connection to MCU via USB-to-serial converter
     try:
-        print('Connecting to MCU via USB-to-serial converter ...')
-        isp = Programmer()
+        if args.transport == 'hid':
+            print('Connecting to MCU via USB HID ...')
+            isp = HIDProgrammer(args.vid, args.pid, args.path, args.timeout)
+        else:
+            print('Connecting to MCU via USB-to-serial converter ...')
+            isp = Programmer()
         print('SUCCESS: Connection established via', isp.port + '.')
     except Exception as ex:
         sys.stderr.write('ERROR: ' + str(ex) + '!\n')
@@ -95,10 +111,10 @@ def _main():
         # Get chip info
         print('Getting chip info ...')
         isp.readinfo()
-        if isp.pid == PY_CHIP_PID:
-            print('SUCCESS: Found PY32F0xx with bootloader v' + isp.verstr + '.')
+        if isp.pid in PY_CHIP_OPTIONS:
+            print('SUCCESS: Found ' + PY_CHIP_OPTIONS[isp.pid]['name'] + ' with bootloader v' + isp.verstr + '.')
         else:
-            print('WARNING: Chip with PID 0x%04x is not a PY32F0xx!' % isp.pid)
+            print('WARNING: Chip with PID 0x%04x is not a known PY32!' % isp.pid)
 
         # Unlock chip
         if args.unlock:
@@ -131,7 +147,7 @@ def _main():
             print('SUCCESS:', len(data), 'bytes written and verified.')
 
         # Manipulate OPTION bytes (only for identified chips)
-        if isp.pid == PY_CHIP_PID and any( (args.rstoption, args.nrstgpio, args.nrstreset, args.lock) ):
+        if isp.pid in PY_CHIP_OPTIONS and any( (args.rstoption, args.nrstgpio, args.nrstreset, args.lock) ):
             if args.rstoption:
                 print('Setting OPTION bytes to default values ...')
                 isp.resetoption()
@@ -168,7 +184,12 @@ class Programmer(Serial):
         # BAUD rate:  4800 - 1000000bps (default: 115200), will be auto-detected
         # Data frame: 1 start bit, 8 data bit, 1 parity bit set to even, 1 stop bit
         super().__init__(baudrate = PY_BAUD, parity = serial.PARITY_EVEN, timeout = 1)
+        self.initoptions()
         self.identify()
+
+    # Initialize OPTION byte layout
+    def initoptions(self):
+        self.chip_options = PY_CHIP_OPTIONS[PY_CHIP_PID]
 
     # Identify port of programmer and enter programming mode
     def identify(self):
@@ -252,6 +273,12 @@ class Programmer(Serial):
         self.ver    = self.readinfostream(PY_CMD_GET)[0]
         self.verstr = '%x.%x' % (self.ver >> 4, self.ver & 7)
         self.pid    = int.from_bytes(self.readinfostream(PY_CMD_PID), byteorder='big')
+        self.setoptionprofile()
+
+    # Select OPTION byte layout
+    def setoptionprofile(self):
+        if self.pid in PY_CHIP_OPTIONS:
+            self.chip_options = PY_CHIP_OPTIONS[self.pid]
 
     # Read UID
     def readuid(self):
@@ -260,36 +287,40 @@ class Programmer(Serial):
     # Read OPTION bytes
     def readoption(self):
         try:
-            self.option = list(self.readflash(PY_OPTION_ADDR, 16))
+            self.option = list(self.readflash(self.chip_options['option_addr'], len(self.chip_options['option_default'])))
         except:
             raise Exception('Chip is locked')
+        optr, sdkr, wrpr = self.chip_options['option_words']
         self.optionstr = 'OPTR: 0x%04x, SDKR: 0x%04x, WRPR: 0x%04x' % \
-                         (( (self.option[ 0] << 8) + self.option[ 1], \
-                            (self.option[ 4] << 8) + self.option[ 5], \
-                            (self.option[12] << 8) + self.option[13] ))
+                         (( (self.option[optr] << 8) + self.option[optr + 1], \
+                            (self.option[sdkr] << 8) + self.option[sdkr + 1], \
+                            (self.option[wrpr] << 8) + self.option[wrpr + 1] ))
 
     # Write OPTION bytes
     def writeoption(self):
-        self.writeflash(PY_OPTION_ADDR, self.option)
+        self.writeflash(self.chip_options['option_addr'], self.option)
 
     # Reset OPTION bytes
     def resetoption(self):
-        self.option = list(PY_OPTION_DEFAULT)
+        self.option = list(self.chip_options['option_default'])
 
     # Set read protection in OPTION bytes
     def lock(self):
         self.option[0]  = 0x55
-        self.option[2]  = 0xaa
+        if self.chip_options['option_comp']:
+            self.option[2]  = 0xaa
 
     # Set nRST pin as GPIO in OPTION bytes
     def nrst2gpio(self):
-        self.option[1] |= 0x40
-        self.option[3] &= 0xbf
+        self.option[1] |= self.chip_options['option_nrst']
+        if self.chip_options['option_comp']:
+            self.option[3] &= self.chip_options['option_nrst'] ^ 0xff
 
     # Set nRST pin as RESET in OPTION bytes
     def nrst2reset(self):
-        self.option[1] &= 0xbf
-        self.option[3] |= 0x40
+        self.option[1] &= self.chip_options['option_nrst'] ^ 0xff
+        if self.chip_options['option_comp']:
+            self.option[3] |= self.chip_options['option_nrst']
 
     # Unlock (clear) chip and reset
     def unlock(self):
@@ -348,6 +379,144 @@ class Programmer(Serial):
             raise Exception('Verification failed')
 
 # ===================================================================================
+# HID Programmer Class
+# ===================================================================================
+
+class HIDProgrammer(Programmer):
+    def __init__(self, vid, pid, path, timeout):
+        self.is_open = False
+        self.dev = None
+        self.vid = vid
+        self.pid = pid
+        self.path = path
+        self.timeout = timeout
+        self.initoptions()
+        self.dev = hid.device()
+        self.open()
+        self.boot()
+        self.port = 'USB HID %04x:%04x' % (vid, pid)
+
+    # Open HID device
+    def open(self):
+        if self.path:
+            path = self.path.encode() if isinstance(self.path, str) else self.path
+            self.dev.open_path(path)
+        else:
+            self.dev.open(self.vid, self.pid)
+        try:
+            self.dev.set_nonblocking(False)
+        except:
+            pass
+        self.is_open = True
+
+    # Close HID device
+    def close(self):
+        if self.dev:
+            self.dev.close()
+        self.is_open = False
+
+    # Write one or more HID output reports
+    def write(self, data):
+        data = bytes(data)
+        while data:
+            block = data[:PY_HID_REPORT_SIZE]
+            self.writereport(block)
+            data = data[PY_HID_REPORT_SIZE:]
+
+    # Write a single HID output report
+    def writereport(self, data):
+        report = bytes(data) + bytes(PY_HID_REPORT_SIZE - len(data))
+        written = self.dev.write(bytes([0]) + report)
+        if written < PY_HID_REPORT_SIZE:
+            raise Exception('Short HID write')
+
+    # Read bytes from one or more HID input reports
+    def read(self, size):
+        data = bytes()
+        while len(data) < size:
+            report = bytes(self.dev.read(PY_HID_REPORT_SIZE, self.timeout))
+            if not report:
+                break
+            data += report[:size - len(data)]
+        return data
+
+    # Send address
+    def sendaddress(self, addr):
+        stream = addr.to_bytes(4, byteorder='big')
+        parity = 0x00
+        for x in range(4):
+            parity ^= stream[x]
+        self.write(stream + bytes([parity]))
+        if not self.checkreply():
+            raise Exception('Failed to send address')
+
+    # Flush pending HID input reports
+    def drain(self):
+        for _ in range(8):
+            try:
+                self.dev.read(PY_HID_REPORT_SIZE, 10)
+            except:
+                break
+
+    # Start bootloader
+    def boot(self):
+        self.drain()
+        self.writereport(bytes([PY_SYNCH]) * PY_HID_REPORT_SIZE)
+        if self.checkreply():
+            return
+        raise Exception('No MCU in HID boot mode found')
+
+    # Reset and disconnect
+    def reset(self):
+        self.close()
+
+    # Start firmware and disconnect
+    def run(self):
+        self.sendcommand(PY_CMD_GO)
+        self.sendaddress(PY_CODE_ADDR)
+        self.close()
+
+    # Read info stream
+    def readinfostream(self, command):
+        self.sendcommand(command)
+        report = bytes(self.dev.read(PY_HID_REPORT_SIZE, self.timeout))
+        if not report:
+            raise Exception('Failed to read info')
+        size = report[0]
+        stream = report[1:1 + size + 1]
+        if report[1 + size + 1] != PY_REPLY_ACK:
+            raise Exception('Failed to read info')
+        return stream
+
+    # Erase whole chip
+    def erase(self):
+        self.sendcommand(PY_CMD_ERASE)
+        self.write(b'\xff\xff')
+        self.write(b'\x00')
+        if not self.checkreply():
+            raise Exception('Failed to erase chip')
+
+    # Write flash
+    def writeflash(self, addr, data):
+        size = len(data)
+        while size > 0:
+            blocksize = size
+            if blocksize > PY_BLOCKSIZE: blocksize = PY_BLOCKSIZE
+            block = data[:blocksize]
+            parity = blocksize - 1
+            for x in range(blocksize):
+                parity ^= block[x]
+            self.sendcommand(PY_CMD_WRITE)
+            self.sendaddress(addr)
+            self.write([blocksize - 1])
+            self.write(bytes(block) + bytes([parity]))
+            if not self.checkreply():
+                raise Exception('Failed to write to address 0x%08x' % addr)
+            data  = data[blocksize:]
+            addr += blocksize
+            size -= blocksize
+
+# ===================================================================================
 # Device Constants
 # ===================================================================================
 
@@ -359,7 +528,6 @@ PY_CODE_ADDR    = 0x08000000
 PY_SRAM_ADDR    = 0x20000000
 PY_BOOT_ADDR    = 0x1fff0000
 PY_UID_ADDR     = 0x1fff0e00
-PY_OPTION_ADDR  = 0x1fff0e80
 PY_CONFIG_ADDR  = 0x1fff0f00
 
 # Command codes
@@ -383,8 +551,25 @@ PY_REPLY_BUSY   = 0xaa
 # Other codes
 PY_SYNCH        = 0x7f
 
-# Default option bytes
-PY_OPTION_DEFAULT = b'\xaa\xbe\x55\x41\xff\x00\x00\xff\xff\xff\xff\xff\xff\xff\x00\x00'
+# Option byte layout by bootloader PID
+PY_CHIP_OPTIONS = {
+    0x440: {
+        'name': 'PY32F0xx',
+        'option_addr': 0x1fff0e80,
+        'option_default': b'\xaa\xbe\x55\x41\xff\x00\x00\xff\xff\xff\xff\xff\xff\xff\x00\x00',
+        'option_nrst': 0x40,
+        'option_comp': True,
+        'option_words': (0, 4, 12),
+    },
+    0x448: {
+        'name': 'PY32F07x/F040-E',
+        'option_addr': 0x1fff3100,
+        'option_default': b'\xaa\xd8' + (b'\xff' * 6) + b'\x00\x00' + (b'\xff' * 14) + b'\xff\xff' + (b'\xff' * 6),
+        'option_nrst': 0x20,
+        'option_comp': False,
+        'option_words': (0, 8, 24),
+    },
+}
 
 # ===================================================================================
 
