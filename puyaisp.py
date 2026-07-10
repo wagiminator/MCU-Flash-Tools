@@ -20,8 +20,8 @@
 #
 # Operating Instructions:
 # -----------------------
-# You need to install PySerial to use puyaisp.
-# Install it via "python3 -m pip install pyserial".
+# You need to install PySerial and hidapi to use puyaisp.
+# Install them via "python3 -m pip install pyserial hidapi".
 # You may need to install a driver for your USB-to-serial converter.
 #
 # Connect your USB-to-serial converter to your MCU:
@@ -221,8 +221,7 @@ class Programmer(Serial):
         parity = 0x00
         for x in range(4):
             parity ^= stream[x]
-        self.write(stream)
-        self.write([parity])
+        self.write(stream + bytes([parity]))
         if not self.checkreply():
             raise Exception('Failed to send address')
 
@@ -244,17 +243,21 @@ class Programmer(Serial):
 
     # Reset and disconnect
     def reset(self):
-        self.dtr = True
-        self.rts = True
-        time.sleep(0.01)
-        self.rts = False
-        self.close()
+        self.disconnect(True)
         
     # Start firmware and disconnect
     def run(self):
         self.sendcommand(PY_CMD_GO)
         self.sendaddress(PY_CODE_ADDR)
+        self.disconnect(False)
+
+    # Disconnect from MCU, optionally resetting it
+    def disconnect(self, reset):
         self.dtr = True
+        if reset:
+            self.rts = True
+            time.sleep(0.01)
+            self.rts = False
         self.close()
 
     #--------------------------------------------------------------------------------
@@ -262,11 +265,19 @@ class Programmer(Serial):
     # Read info stream
     def readinfostream(self, command):
         self.sendcommand(command)
-        size = self.read(1)[0]
-        stream = self.read(size + 1)
-        if not self.checkreply():
+        response = self.readinforesponse()
+        size = response[0]
+        stream = response[1:1 + size + 1]
+        if len(response) <= size + 2 or response[size + 2] != PY_REPLY_ACK:
             raise Exception('Failed to read info')
         return stream
+
+    # Read a complete info response
+    def readinforesponse(self):
+        size = self.read(1)
+        if not size:
+            raise Exception('Failed to read info')
+        return size + self.read(size[0] + 1) + self.read(1)
 
     # Get chip info
     def readinfo(self):
@@ -333,7 +344,8 @@ class Programmer(Serial):
     # Erase whole chip
     def erase(self):
         self.sendcommand(PY_CMD_ERASE)
-        self.write(b'\xff\xff\x00')
+        self.write(b'\xff\xff')
+        self.write(b'\x00')
         if not self.checkreply():
             raise Exception('Failed to erase chip')
 
@@ -364,8 +376,7 @@ class Programmer(Serial):
             self.sendcommand(PY_CMD_WRITE)
             self.sendaddress(addr)
             self.write([blocksize - 1])
-            self.write(block)
-            self.write([parity])
+            self.write(bytes(block) + bytes([parity]))
             if not self.checkreply():
                 raise Exception('Failed to write to address 0x%08x' % addr)
             data  = data[blocksize:]
@@ -440,16 +451,6 @@ class HIDProgrammer(Programmer):
             data += report[:size - len(data)]
         return data
 
-    # Send address
-    def sendaddress(self, addr):
-        stream = addr.to_bytes(4, byteorder='big')
-        parity = 0x00
-        for x in range(4):
-            parity ^= stream[x]
-        self.write(stream + bytes([parity]))
-        if not self.checkreply():
-            raise Exception('Failed to send address')
-
     # Flush pending HID input reports
     def drain(self):
         for _ in range(8):
@@ -466,55 +467,16 @@ class HIDProgrammer(Programmer):
             return
         raise Exception('No MCU in HID boot mode found')
 
-    # Reset and disconnect
-    def reset(self):
+    # Disconnect from MCU
+    def disconnect(self, reset):
         self.close()
 
-    # Start firmware and disconnect
-    def run(self):
-        self.sendcommand(PY_CMD_GO)
-        self.sendaddress(PY_CODE_ADDR)
-        self.close()
-
-    # Read info stream
-    def readinfostream(self, command):
-        self.sendcommand(command)
+    # Read a complete info response
+    def readinforesponse(self):
         report = bytes(self.dev.read(PY_HID_REPORT_SIZE, self.timeout))
         if not report:
             raise Exception('Failed to read info')
-        size = report[0]
-        stream = report[1:1 + size + 1]
-        if report[1 + size + 1] != PY_REPLY_ACK:
-            raise Exception('Failed to read info')
-        return stream
-
-    # Erase whole chip
-    def erase(self):
-        self.sendcommand(PY_CMD_ERASE)
-        self.write(b'\xff\xff')
-        self.write(b'\x00')
-        if not self.checkreply():
-            raise Exception('Failed to erase chip')
-
-    # Write flash
-    def writeflash(self, addr, data):
-        size = len(data)
-        while size > 0:
-            blocksize = size
-            if blocksize > PY_BLOCKSIZE: blocksize = PY_BLOCKSIZE
-            block = data[:blocksize]
-            parity = blocksize - 1
-            for x in range(blocksize):
-                parity ^= block[x]
-            self.sendcommand(PY_CMD_WRITE)
-            self.sendaddress(addr)
-            self.write([blocksize - 1])
-            self.write(bytes(block) + bytes([parity]))
-            if not self.checkreply():
-                raise Exception('Failed to write to address 0x%08x' % addr)
-            data  = data[blocksize:]
-            addr += blocksize
-            size -= blocksize
+        return report
 
 # ===================================================================================
 # Device Constants
