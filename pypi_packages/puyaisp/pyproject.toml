@@ -7,7 +7,7 @@ name         = "puyaisp"
 version      = "1.4.1"
 description  = "Programming Tool for PUYA PY32F0xx Microcontrollers"
 keywords     = ["ISP", "PUYA", "PY32F002A", "PY32F003", "PY32F030", "microcontroller"]
-dependencies = ["pyserial"]
+dependencies = ["pyserial", "hidapi"]
 requires-python = ">=3.8"
 authors = [
     { name="Stefan Wagner", email="wagiminator@web.de" },
