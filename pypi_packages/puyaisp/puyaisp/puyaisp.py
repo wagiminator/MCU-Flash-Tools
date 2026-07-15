@@ -17,11 +17,12 @@
 # -------------
 # - pyserial
 # - hidapi
+# - tqdm
 #
 # Operating Instructions:
 # -----------------------
-# You need to install PySerial and hidapi to use puyaisp.
-# Install them via "python3 -m pip install pyserial hidapi".
+# You need to install PySerial, hidapi and tqdm to use puyaisp.
+# Install them via "python3 -m pip install pyserial hidapi tqdm".
 # You may need to install a driver for your USB-to-serial converter.
 #
 # Connect your USB-to-serial converter to your MCU:
@@ -64,6 +65,7 @@ import time
 import argparse
 import serial
 import hid
+from tqdm import tqdm
 from serial import Serial
 from serial.tools.list_ports import comports
 
@@ -141,7 +143,8 @@ def _main():
         if args.flash is not None:
             print('Flashing', args.flash, 'to MCU ...')
             with open(args.flash, 'rb') as f: data = f.read()
-            isp.writeflash(PY_CODE_ADDR, data)
+            with tqdm(total=len(data), desc='Writing', unit='B', unit_scale=True) as progress:
+                isp.writeflash(PY_CODE_ADDR, data, progress.update)
             print('Verifying ...')
             isp.verifyflash(PY_CODE_ADDR, data)
             print('SUCCESS:', len(data), 'bytes written and verified.')
@@ -364,7 +367,7 @@ class Programmer(Serial):
         return data
 
     # Write flash
-    def writeflash(self, addr, data):
+    def writeflash(self, addr, data, progress=None):
         size = len(data)
         while size > 0:
             blocksize = size
@@ -379,6 +382,8 @@ class Programmer(Serial):
             self.write(bytes(block) + bytes([parity]))
             if not self.checkreply():
                 raise Exception('Failed to write to address 0x%08x' % addr)
+            if progress is not None:
+                progress(blocksize)
             data  = data[blocksize:]
             addr += blocksize
             size -= blocksize
