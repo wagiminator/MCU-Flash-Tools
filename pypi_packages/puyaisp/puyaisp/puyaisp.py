@@ -17,11 +17,12 @@
 # -------------
 # - pyserial
 # - hidapi
+# - tqdm
 #
 # Operating Instructions:
 # -----------------------
-# You need to install PySerial and hidapi to use puyaisp.
-# Install them via "python3 -m pip install pyserial hidapi".
+# You need to install PySerial, hidapi and tqdm to use puyaisp.
+# Install them via "python3 -m pip install pyserial hidapi tqdm".
 # You may need to install a driver for your USB-to-serial converter.
 #
 # Connect your USB-to-serial converter to your MCU:
@@ -64,6 +65,7 @@ import time
 import argparse
 import serial
 import hid
+from tqdm import tqdm
 from serial import Serial
 from serial.tools.list_ports import comports
 
@@ -141,9 +143,11 @@ def _main():
         if args.flash is not None:
             print('Flashing', args.flash, 'to MCU ...')
             with open(args.flash, 'rb') as f: data = f.read()
-            isp.writeflash(PY_CODE_ADDR, data)
+            with tqdm(total=len(data), desc='Writing', unit='B', unit_scale=True) as progress:
+                isp.writeflash(PY_CODE_ADDR, data, progress.update)
             print('Verifying ...')
-            isp.verifyflash(PY_CODE_ADDR, data)
+            with tqdm(total=len(data), desc='Verifying', unit='B', unit_scale=True) as progress:
+                isp.verifyflash(PY_CODE_ADDR, data, progress.update)
             print('SUCCESS:', len(data), 'bytes written and verified.')
 
         # Manipulate OPTION bytes (only for identified chips)
@@ -350,7 +354,7 @@ class Programmer(Serial):
             raise Exception('Failed to erase chip')
 
     # Read flash
-    def readflash(self, addr, size):
+    def readflash(self, addr, size, progress=None):
         data = bytes()
         while size > 0:
             blocksize = size
@@ -358,13 +362,16 @@ class Programmer(Serial):
             self.sendcommand(PY_CMD_READ)
             self.sendaddress(addr)
             self.sendcommand(blocksize - 1)
-            data += self.read(blocksize)
+            block = self.read(blocksize)
+            data += block
+            if progress is not None:
+                progress(len(block))
             addr += blocksize
             size -= blocksize
         return data
 
     # Write flash
-    def writeflash(self, addr, data):
+    def writeflash(self, addr, data, progress=None):
         size = len(data)
         while size > 0:
             blocksize = size
@@ -379,13 +386,15 @@ class Programmer(Serial):
             self.write(bytes(block) + bytes([parity]))
             if not self.checkreply():
                 raise Exception('Failed to write to address 0x%08x' % addr)
+            if progress is not None:
+                progress(blocksize)
             data  = data[blocksize:]
             addr += blocksize
             size -= blocksize
 
     # Verify flash
-    def verifyflash(self, addr, data):
-        flash = self.readflash(addr, len(data))
+    def verifyflash(self, addr, data, progress=None):
+        flash = self.readflash(addr, len(data), progress)
         if set(flash) != set(data):
             raise Exception('Verification failed')
 
