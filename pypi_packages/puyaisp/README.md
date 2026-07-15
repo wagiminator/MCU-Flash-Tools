@@ -31,8 +31,8 @@ Set your MCU to bootloader mode by using ONE of the following methods:
 - If your microcontroller has USB, pull BOOT0 pin (PF4) to VCC (or press and hold the BOOT button, if your board has one), then connect it to your USB port. The default USB VID:PID is `ffff:0448`.
 
 ```
-Usage: puyaisp [-h] [-u] [-l] [-e] [-o] [-G] [-R] [-f FLASH]
-               [-t {serial,hid}] [--vid VID] [--pid PID] [--path PATH]
+Usage: puyaisp [-h] [-u] [-l] [-e] [-o] [-G] [-R] [-t {serial,hid}] [-f FLASH]
+               [--vid VID] [--pid PID] [--path PATH]
                [--timeout TIMEOUT]
 
 Optional arguments:
@@ -48,11 +48,11 @@ Optional arguments:
   --vid VID                      HID VID
   --pid PID                      HID PID
   --path PATH                    hidapi device path
-  --timeout TIMEOUT              HID read timeout in ms
+  --timeout TIMEOUT              read timeout in ms
 
 Examples:
 puyaisp -f firmware.bin
-puyaisp --transport hid -f firmware.bin
+puyaisp -t hid -f firmware.bin
 ```
 
 ## Links

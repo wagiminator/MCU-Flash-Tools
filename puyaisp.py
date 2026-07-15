@@ -80,12 +80,12 @@ def _main():
     parser.add_argument('-o', '--rstoption',action='store_true', help='reset option bytes')
     parser.add_argument('-G', '--nrstgpio', action='store_true', help='make nRST pin a GPIO pin')
     parser.add_argument('-R', '--nrstreset',action='store_true', help='make nRST pin a RESET pin')
-    parser.add_argument('-f', '--flash',    help='write BIN file to flash and verify')
     parser.add_argument('-t', '--transport', choices=('serial', 'hid'), default='serial', help='bootloader transport')
+    parser.add_argument('-f', '--flash',    help='write BIN file to flash and verify')
     parser.add_argument('--vid',       type=lambda x: int(x, 0), default=PY_HID_VID, help='HID VID')
     parser.add_argument('--pid',       type=lambda x: int(x, 0), default=PY_HID_PID, help='HID PID')
     parser.add_argument('--path',      help='hidapi device path')
-    parser.add_argument('--timeout',   type=int, default=1000, help='HID read timeout in ms')
+    parser.add_argument('--timeout',   type=int, default=1000, help='read timeout in ms')
     args = parser.parse_args(sys.argv[1:])
 
     # Check arguments
@@ -100,7 +100,7 @@ def _main():
             isp = HIDProgrammer(args.vid, args.pid, args.path, args.timeout)
         else:
             print('Connecting to MCU via USB-to-serial converter ...')
-            isp = Programmer()
+            isp = Programmer(args.timeout)
         print('SUCCESS: Connection established via', isp.port + '.')
     except Exception as ex:
         sys.stderr.write('ERROR: ' + str(ex) + '!\n')
@@ -180,10 +180,10 @@ def _main():
 # ===================================================================================
 
 class Programmer(Serial):
-    def __init__(self):
+    def __init__(self, timeout=1000):
         # BAUD rate:  4800 - 1000000bps (default: 115200), will be auto-detected
         # Data frame: 1 start bit, 8 data bit, 1 parity bit set to even, 1 stop bit
-        super().__init__(baudrate = PY_BAUD, parity = serial.PARITY_EVEN, timeout = 1)
+        super().__init__(baudrate = PY_BAUD, parity = serial.PARITY_EVEN, timeout = timeout / 1000)
         self.initoptions()
         self.identify()
 
