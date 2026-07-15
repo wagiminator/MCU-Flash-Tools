@@ -32,23 +32,23 @@ Set your MCU to bootloader mode by using ONE of the following methods:
 
 ```
 Usage: puyaisp [-h] [-u] [-l] [-e] [-o] [-G] [-R] [-f FLASH]
-               [--transport {serial,hid}] [--vid VID] [--pid PID] [--path PATH]
+               [-t {serial,hid}] [--vid VID] [--pid PID] [--path PATH]
                [--timeout TIMEOUT]
 
 Optional arguments:
-  -h, --help                show this help message and exit
-  -u, --unlock              unlock chip (remove read protection)
-  -l, --lock                lock chip (set read protection)
-  -e, --erase               perform chip erase (implied with -f)
-  -o, --rstoption           reset option bytes
-  -G, --nrstgpio            make nRST pin a GPIO pin
-  -R, --nrstreset           make nRST pin a RESET pin
-  -f FLASH, --flash FLASH   write BIN file to flash and verify
-  --transport {serial,hid}  bootloader transport
-  --vid VID                 HID VID
-  --pid PID                 HID PID
-  --path PATH               hidapi device path
-  --timeout TIMEOUT         HID read timeout in ms
+  -h, --help                     show this help message and exit
+  -u, --unlock                   unlock chip (remove read protection)
+  -l, --lock                     lock chip (set read protection)
+  -e, --erase                    perform chip erase (implied with -f)
+  -o, --rstoption                reset option bytes
+  -G, --nrstgpio                 make nRST pin a GPIO pin
+  -R, --nrstreset                make nRST pin a RESET pin
+  -t, --transport {serial,hid}   bootloader transport
+  -f FLASH, --flash FLASH        write BIN file to flash and verify
+  --vid VID                      HID VID
+  --pid PID                      HID PID
+  --path PATH                    hidapi device path
+  --timeout TIMEOUT              HID read timeout in ms
 
 Examples:
 puyaisp -f firmware.bin

@@ -81,7 +81,7 @@ def _main():
     parser.add_argument('-G', '--nrstgpio', action='store_true', help='make nRST pin a GPIO pin')
     parser.add_argument('-R', '--nrstreset',action='store_true', help='make nRST pin a RESET pin')
     parser.add_argument('-f', '--flash',    help='write BIN file to flash and verify')
-    parser.add_argument('--transport', choices=('serial', 'hid'), default='serial', help='bootloader transport')
+    parser.add_argument('-t', '--transport', choices=('serial', 'hid'), default='serial', help='bootloader transport')
     parser.add_argument('--vid',       type=lambda x: int(x, 0), default=PY_HID_VID, help='HID VID')
     parser.add_argument('--pid',       type=lambda x: int(x, 0), default=PY_HID_PID, help='HID PID')
     parser.add_argument('--path',      help='hidapi device path')
