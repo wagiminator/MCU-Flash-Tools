@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   rvprog - Programming Tool for WCH RISC-V Microcontrollers with WCH-LinkE
-# Version:   v1.10
+# Version:   v1.11
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -13,7 +13,8 @@
 # Simple Python tool for flashing WCH RISC-V microcontrollers using the WCH-LinkE,
 # WCH-LinkW, WCH-LinkB, or compatible programmers/debuggers.
 # Currently supports: CH32V002, CH32V003, CH32V004, CH32V005, CH32V006, CH32V007,
-#                     CH32V103, CH32V203, CH32V208, CH32V303, CH32V305, CH32V307,
+#                     CH32V103, CH32V203, CH32V205, CH32V208, CH32V303, CH32V305,
+#                     CH32V307, CH32V317,
 #                     CH32X033, CH32X035, CH32L103,
 #                     CH571, CH573, CH581, CH582, CH583, CH591, CH592.
 #
@@ -223,7 +224,7 @@ class Programmer:
                 print('Failed to connect, trying to unbrick MCU ...')
                 self.sendcommand(b'\x81\x0d\x01\x0f\x09')
             reply = self.sendcommand(b'\x81\x0d\x01\x02')
-            if len(reply) < 8 or set(reply[:4]) == set((0x81, 0x55, 0x01, 0x01)):
+            if len(reply) < 8 or bytes(reply[:4]) == b'\x81\x55\x01\x01':
                 time.sleep(0.2)
                 continue
 
@@ -234,19 +235,29 @@ class Programmer:
             self.chipid     = (reply[4] << 8) + reply[5]
             self.chipfamily = self.chipid >> 4
             self.device     = None
+            self.family     = None
+
+            # Find family in dictionary
+            for f in FAMILIES:
+                if f['id'] == self.chipfamily:
+                    self.family = f
+            if self.family is None:
+                continue
 
             # Find device in dictionary
             for d in DEVICES:
                 if d['id'] == self.chipid:
                     self.device = d
+                    break
+
+            # Unknown package/variant of a known family: use the family settings
             if self.device is None:
-                continue
+                if self.family['optbytes'] is None:
+                    continue
+                self.device = {'name': '%s (ID 0x%04x)' % (self.family['name'], self.chipid)}
 
             # Success
             self.chipname = self.device['name']
-            for f in FAMILIES:
-                if f['id'] == self.chipfamily:
-                    self.family = f
             success = 1
             break
 
@@ -261,6 +272,8 @@ class Programmer:
         if self.family['optbytes'] is not None:
             reply = self.sendcommand((0x81, 0x11, 0x01, self.chipmark))
             self.flashsize = int.from_bytes(reply[2:4], byteorder='big') * 1024
+            if self.flashsize == 0:                                 # programmer did not report a size
+                self.flashsize = self.device.get('code_size', self.family.get('code_size', 0))
         else:
             self.flashsize = self.device['code_size']
 
@@ -377,12 +390,12 @@ class Programmer:
         for page in pages:
             self.dev.write(CH_EP_OUT_RAW, page)
         reply = self.dev.read(CH_EP_IN_RAW, CH_PACKET_SIZE, CH_TIMEOUT)
-        if set(reply) != set((0x41, 0x01, 0x01, 0x04)):
+        if bytes(reply[:4]) != b'\x41\x01\x01\x04':
             raise Exception('Failed writing/verifying data blob')
 
     # Write data to code flash
     def flash_data(self, data):
-        if len(data) > self.flashsize:
+        if (self.flashsize > 0) and (len(data) > self.flashsize):
             raise Exception('Not enough memory')
         self.writebinaryblob(self.family['code_base'], self.family['block_size'], self.family['loader'], data)
 
@@ -788,6 +801,8 @@ DEVICES = [
 
     {'name': 'CH32V103',     'id': 0x2500},
 
+    {'name': 'CH32V205',     'id': 0x2050},
+
     {'name': 'CH32V203C8U6', 'id': 0x2030},
     {'name': 'CH32V203C8T6', 'id': 0x2031},
     {'name': 'CH32V203K8T6', 'id': 0x2032},
@@ -814,6 +829,7 @@ DEVICES = [
     {'name': 'CH32V307VCT6', 'id': 0x3070},
     {'name': 'CH32V307RCT6', 'id': 0x3071},
     {'name': 'CH32V307WCU6', 'id': 0x3073},
+    {'name': 'CH32V317',     'id': 0x3170},
 
     {'name': 'CH32X033F8P6', 'id': 0x035a},
     {'name': 'CH32X035R8T6', 'id': 0x0350},
@@ -841,28 +857,31 @@ DEVICES = [
 ]
 
 FAMILIES = [
-    {'id': 0x002, 'block_size':  64, 'loader': LOADER_V002, 'code_base' : 0x08000000, 'optbytes': b'\xf7\xff\xff\xff\xff\xff\xff'},
-    {'id': 0x003, 'block_size':  64, 'loader': LOADER_V003, 'code_base' : 0x08000000, 'optbytes': b'\xf7\xff\xff\xff\xff\xff\xff'},
-    {'id': 0x004, 'block_size':  64, 'loader': LOADER_V002, 'code_base' : 0x08000000, 'optbytes': b'\xf7\xff\xff\xff\xff\xff\xff'},
-    {'id': 0x005, 'block_size':  64, 'loader': LOADER_V002, 'code_base' : 0x08000000, 'optbytes': b'\xf7\xff\xff\xff\xff\xff\xff'},
-    {'id': 0x006, 'block_size':  64, 'loader': LOADER_V002, 'code_base' : 0x08000000, 'optbytes': b'\xf7\xff\xff\xff\xff\xff\xff'},
-    {'id': 0x007, 'block_size':  64, 'loader': LOADER_V002, 'code_base' : 0x08000000, 'optbytes': b'\xf7\xff\xff\xff\xff\xff\xff'},
-    {'id': 0x250, 'block_size': 128, 'loader': LOADER_V103, 'code_base' : 0x08000000, 'optbytes': b'\xff\xff\xff\xff\xff\xff\xff'},
-    {'id': 0x203, 'block_size': 256, 'loader': LOADER_V203, 'code_base' : 0x08000000, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff'},
-    {'id': 0x208, 'block_size': 256, 'loader': LOADER_V203, 'code_base' : 0x08000000, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff'},
-    {'id': 0x303, 'block_size': 256, 'loader': LOADER_V203, 'code_base' : 0x08000000, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff'},
-    {'id': 0x305, 'block_size': 256, 'loader': LOADER_V203, 'code_base' : 0x08000000, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff'},
-    {'id': 0x307, 'block_size': 256, 'loader': LOADER_V203, 'code_base' : 0x08000000, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff'},
-    {'id': 0x035, 'block_size': 256, 'loader': LOADER_X035, 'code_base' : 0x08000000, 'optbytes': b'\xff\xff\xff\xff\xff\xff\xff'},
-    {'id': 0x103, 'block_size': 256, 'loader': LOADER_L103, 'code_base' : 0x08000000, 'optbytes': b'\xff\xff\xff\xff\xff\xff\xff'},
+    # CH32V00x: 256-byte flash pages (fast programming/erasing), see CH32V00X reference manual
+    {'id': 0x002, 'name': 'CH32V002', 'block_size': 256, 'loader': LOADER_V002, 'code_base' : 0x08000000, 'optbytes': b'\xf7\xff\xff\xff\xff\xff\xff', 'code_size':  16384},
+    {'id': 0x003, 'name': 'CH32V003', 'block_size':  64, 'loader': LOADER_V003, 'code_base' : 0x08000000, 'optbytes': b'\xf7\xff\xff\xff\xff\xff\xff', 'code_size':  16384},
+    {'id': 0x004, 'name': 'CH32V004', 'block_size': 256, 'loader': LOADER_V002, 'code_base' : 0x08000000, 'optbytes': b'\xf7\xff\xff\xff\xff\xff\xff', 'code_size':  32768},
+    {'id': 0x005, 'name': 'CH32V005', 'block_size': 256, 'loader': LOADER_V002, 'code_base' : 0x08000000, 'optbytes': b'\xf7\xff\xff\xff\xff\xff\xff', 'code_size':  32768},
+    {'id': 0x006, 'name': 'CH32V006', 'block_size': 256, 'loader': LOADER_V002, 'code_base' : 0x08000000, 'optbytes': b'\xf7\xff\xff\xff\xff\xff\xff', 'code_size':  63488},
+    {'id': 0x007, 'name': 'CH32V007', 'block_size': 256, 'loader': LOADER_V002, 'code_base' : 0x08000000, 'optbytes': b'\xf7\xff\xff\xff\xff\xff\xff', 'code_size':  63488},
+    {'id': 0x250, 'name': 'CH32V103', 'block_size': 128, 'loader': LOADER_V103, 'code_base' : 0x08000000, 'optbytes': b'\xff\xff\xff\xff\xff\xff\xff', 'code_size':  65536},
+    {'id': 0x203, 'name': 'CH32V203', 'block_size': 256, 'loader': LOADER_V203, 'code_base' : 0x08000000, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff', 'code_size': 229376},
+    {'id': 0x205, 'name': 'CH32V205', 'block_size': 256, 'loader': LOADER_V203, 'code_base' : 0x08000000, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff', 'code_size': 262144},
+    {'id': 0x208, 'name': 'CH32V208', 'block_size': 256, 'loader': LOADER_V203, 'code_base' : 0x08000000, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff', 'code_size': 491520},
+    {'id': 0x303, 'name': 'CH32V303', 'block_size': 256, 'loader': LOADER_V203, 'code_base' : 0x08000000, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff', 'code_size': 491520},
+    {'id': 0x305, 'name': 'CH32V305', 'block_size': 256, 'loader': LOADER_V203, 'code_base' : 0x08000000, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff', 'code_size': 491520},
+    {'id': 0x307, 'name': 'CH32V307', 'block_size': 256, 'loader': LOADER_V203, 'code_base' : 0x08000000, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff', 'code_size': 491520},
+    {'id': 0x317, 'name': 'CH32V317', 'block_size': 256, 'loader': LOADER_V203, 'code_base' : 0x08000000, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff', 'code_size': 491520},
+    {'id': 0x035, 'name': 'CH32X035', 'block_size': 256, 'loader': LOADER_X035, 'code_base' : 0x08000000, 'optbytes': b'\xff\xff\xff\xff\xff\xff\xff', 'code_size':  63488},
+    {'id': 0x103, 'name': 'CH32L103', 'block_size': 256, 'loader': LOADER_L103, 'code_base' : 0x08000000, 'optbytes': b'\xff\xff\xff\xff\xff\xff\xff', 'code_size':  65536},
 
-    {'id': 0x710, 'block_size': 256, 'loader': LOADER_573,  'code_base' : 0x00000000, 'optbytes': None},
-    {'id': 0x730, 'block_size': 256, 'loader': LOADER_573,  'code_base' : 0x00000000, 'optbytes': None},
-    {'id': 0x810, 'block_size': 256, 'loader': LOADER_583,  'code_base' : 0x00000000, 'optbytes': None},
-    {'id': 0x820, 'block_size': 256, 'loader': LOADER_583,  'code_base' : 0x00000000, 'optbytes': None},
-    {'id': 0x830, 'block_size': 256, 'loader': LOADER_583,  'code_base' : 0x00000000, 'optbytes': None},
-    {'id': 0x910, 'block_size': 256, 'loader': LOADER_583,  'code_base' : 0x00000000, 'optbytes': None},
-    {'id': 0x920, 'block_size': 256, 'loader': LOADER_583,  'code_base' : 0x00000000, 'optbytes': None}
+    {'id': 0x710, 'name': 'CH571', 'block_size': 256, 'loader': LOADER_573,  'code_base' : 0x00000000, 'optbytes': None},
+    {'id': 0x730, 'name': 'CH573', 'block_size': 256, 'loader': LOADER_573,  'code_base' : 0x00000000, 'optbytes': None},
+    {'id': 0x810, 'name': 'CH581', 'block_size': 256, 'loader': LOADER_583,  'code_base' : 0x00000000, 'optbytes': None},
+    {'id': 0x820, 'name': 'CH582', 'block_size': 256, 'loader': LOADER_583,  'code_base' : 0x00000000, 'optbytes': None},
+    {'id': 0x830, 'name': 'CH583', 'block_size': 256, 'loader': LOADER_583,  'code_base' : 0x00000000, 'optbytes': None},
+    {'id': 0x910, 'name': 'CH591', 'block_size': 256, 'loader': LOADER_583,  'code_base' : 0x00000000, 'optbytes': None},
+    {'id': 0x920, 'name': 'CH592', 'block_size': 256, 'loader': LOADER_583,  'code_base' : 0x00000000, 'optbytes': None}
 ]
 
 # ===================================================================================
