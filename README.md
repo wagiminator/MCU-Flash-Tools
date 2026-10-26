@@ -8,6 +8,7 @@ This is a compilation of straightforward In-System Programming (ISP) flash tools
 - [stc8usb.py - Flashing STC8H8KxxU via embedded USB bootloader](#stc8usb)
 - [stm32isp.py - Flashing entry-level STM32 with USB-to-serial converter via embedded UART bootloader](#stm32isp)
 - [tinyupdi.py - Flashing tinyAVR with USB-to-serial converter via UPDI](#tinyupdi)
+- [avrprog.py - Flashing classic AVRs via ISP with USBasp or USBtinyISP](#avrprog)
 
 In order for these tools to work, Python3 must be installed on your system. To do this, follow these [instructions](https://www.pythontutorial.net/getting-started/install-python/). In addition [PyUSB](https://github.com/pyusb/pyusb), [PySerial](https://github.com/pyserial/pyserial) and [pyhidapi](https://pypi.org/project/hid/) must be installed. On Linux (Debian-based), all of this can be done with the following commands:
 
@@ -43,6 +44,9 @@ python3 chprog.py firmware.bin
 
 ### Installation via pip
 Take a look [here](https://pypi.org/project/chprog/).
+
+### Web-App
+You can try the web browser port [here](https://wagiminator.github.io/apps/chprog/).
 
 ## rvprog
 ### Description
@@ -100,6 +104,9 @@ python3 rvprog.py -f firmware.bin
 ### Installation via pip
 Take a look [here](https://pypi.org/project/rvprog/).
 
+### Web-App
+You can try the web browser port [here](https://wagiminator.github.io/apps/rvprog/).
+
 ## puyaisp
 ### Description
 With this tool, PUYA microcontrollers of the series PY32F0xx (and maybe other PY32) can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded UART bootloader.
@@ -143,6 +150,9 @@ python3 puyaisp.py -f firmware.bin
 
 ### Installation via pip
 Take a look [here](https://pypi.org/project/puyaisp/).
+
+### Web-App
+You can try the web browser port [here](https://wagiminator.github.io/apps/puyaisp/).
 
 ## stc8isp
 ### Description
@@ -322,12 +332,59 @@ Optional arguments:
   -fs [FUSES [FUSES ...]], --fuses [FUSES [FUSES ...]]
                             fuses to set (syntax: fuse_nr:0xvalue)
   -t TRIM, --trim TRIM      configure oscillator for given frequency (set fuse 2)
+  
 Example:
 python3 tinyupdi.py -f firmware.bin -fs 6:0x04 7:0x00 8:0x00 -t 8000000
 ```
 
 ### Installation via pip
 Take a look [here](https://pypi.org/project/tinyupdi/).
+
+### Web-App
+You can try the web browser port [here](https://wagiminator.github.io/apps/tinyupdi/).
+
+## avrprog
+### Description
+Simple tool for flashing classic AVR microcontrollers via ISP with a USBasp or a USBtinyISP programmer. The programmer type and the connected chip are detected automatically.
+
+### Preparations
+Linux users need permission to access the device. Run:
+```
+echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="16c0", ATTR{idProduct}=="05dc", MODE="666"' | sudo tee /etc/udev/rules.d/99-avrprog.rules
+echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1781", ATTR{idProduct}=="0c9f", MODE="666"' | sudo tee -a /etc/udev/rules.d/99-avrprog.rules
+sudo udevadm control --reload-rules
+```
+
+On Windows, PyUSB also needs a libusb backend ("pip install libusb-package") and the programmer needs a libusb compatible driver (WinUSB, libusb-win32 or libusbK, installable with [Zadig](https://zadig.akeo.ie).
+
+### Usage as a Script
+Connect the programmer to your PC and its ISP cable to the AVR.
+
+```
+Usage: avrprog.py [-h] [-t {usbasp,usbtiny}] [-p PART] [-B BITCLOCK] [-e] [-f FLASH] [-l LFUSE] [-H HFUSE] [-E EFUSE] [-L LOCK] [-r] [-F] [--list]
+
+Optional arguments:
+  -h, --help                show help message and exit
+  -t, --programmer          programmer type (default: auto-detect)
+  -p, --part                chip type (default: auto-detect by signature)
+  -B, --bitclock            ISP clock: period in us (e.g. 10) or frequency (e.g. 125kHz)
+  -e, --erase               perform a chip erase (implied with -f)
+  -f FLASH, --flash FLASH   write BIN or HEX file to flash and verify
+  -l, --lfuse VALUE         write low fuse byte
+  -H, --hfuse VALUE         write high fuse byte
+  -E, --efuse VALUE         write extended fuse byte
+  -L, --lock VALUE          write lock byte (after all other actions)
+  -r, --read                read and show fuses, lock bits and calibration
+  -F, --force               allow fuse settings that disable ISP (RSTDISBL, DWEN, SPIEN)
+  --list                    list supported chips
+Without action arguments the tool shows programmer, chip and fuses.
+
+Example:
+python3 avrprog.py -f firmware.hex -l 0xe2 -H 0xdf -E 0xff
+```
+
+### Web-App
+You can try the web browser port [here](https://wagiminator.github.io/apps/avrisp/).
 
 ## Links
 1. [MCU Templates](https://github.com/wagiminator/MCU-Templates)
