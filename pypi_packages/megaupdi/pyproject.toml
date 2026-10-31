@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name         = "megaupdi"
+version      = "1.0.0"
+description  = "Simple SerialUPDI Programming Tool for all AVR Microcontrollers with UPDI"
+keywords     = ["AVR", "Microchip", "ATtiny", "tinyAVR", "ATmega", "megaAVR", "AVR-DA", "AVR-DB", "AVR-DD", "AVR-DU", "AVR-EA", "AVR-EB", "UPDI", "SerialUPDI", "microcontroller"]
+dependencies = ["pyserial"]
+requires-python = ">=3.8"
+authors = [
+    { name="Stefan Wagner", email="wagiminator@web.de" },
+]
+maintainers = [
+    { name="Stefan Wagner", email="wagiminator@web.de" },
+]
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Embedded Systems",
+]
+
+[project.scripts]
+megaupdi = "megaupdi.megaupdi:_main"
+
+[project.urls]
+Homepage   = "https://wagiminator.github.io/"
+Repository = "https://github.com/wagiminator/MCU-Flash-Tools"
+Issues     = "https://github.com/wagiminator/MCU-Flash-Tools/issues"

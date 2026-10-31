@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name         = "avrprog"
+version      = "1.1.0"
+description  = "Programming Tool for classic AVR Microcontrollers with USBasp or USBtinyISP"
+keywords     = ["ISP", "AVR", "ATtiny", "ATmega", "USBasp", "USBtinyISP", "microcontroller"]
+dependencies = ["pyusb", "libusb-package; platform_system == 'Windows'"]
+requires-python = ">=3.8"
+authors = [
+    { name="Stefan Wagner", email="wagiminator@web.de" },
+]
+maintainers = [
+    { name="Stefan Wagner", email="wagiminator@web.de" },
+]
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Embedded Systems",
+]
+
+[project.scripts]
+avrprog = "avrprog.avrprog:_main"
+
+[project.urls]
+Homepage   = "https://wagiminator.github.io/"
+Repository = "https://github.com/wagiminator/MCU-Flash-Tools"
+Issues     = "https://github.com/wagiminator/MCU-Flash-Tools/issues"

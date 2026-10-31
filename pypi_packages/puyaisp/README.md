@@ -1,6 +1,16 @@
-#  Programming Tool for PUYA PY32F0xx Microcontrollers
+#  Programming Tool for PUYA PY32 Microcontrollers
 ## Description
-With this tool, PUYA microcontrollers of the series PY32F0xx (and maybe other PY32) can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded UART/HID bootloader.
+With this tool, PUYA PY32 microcontrollers can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded UART/HID bootloader.
+
+Supported microcontrollers (identified by the bootloader PID):
+
+|Bootloader PID|Microcontrollers|Interfaces|
+|:-|:-|:-|
+|0x440|PY32F002A, PY32F003, PY32F030|UART|
+|0x448|PY32F071, PY32F072, PY32F040|UART, USB HID|
+|0x413|PY32F403, PY32F303|UART|
+
+Other PY32 microcontrollers with the same bootloader protocol can be flashed as well, but their option bytes cannot be changed. PY32F002B and PY32L020 have no UART bootloader in system memory and are not supported.
 
 ## Preparations
 If necessary, a driver for the USB-to-serial converter used must be installed.
@@ -13,17 +23,19 @@ pip install puyaisp
 ```
 
 ## Usage
-Connect your USB-to-serial converter to your PY32F0xx MCU as follows:
+Connect your USB-to-serial converter to your PY32 MCU as follows:
 
 ```
-USB2SERIAL            PY32F0xx
-+--------+      +-------------------+
-|     RXD| <--- |PA2 or PA9  or PA14|
-|     TXD| ---> |PA3 or PA10 or PA15|
-|     VDD| ---> |VDD                |
-|     GND| ---> |GND                |
-+--------+      +-------------------+
+USB2SERIAL      PY32F002A/F003/F030    PY32F07x/F040    PY32F403/F303
++--------+
+|     RXD| <--- PA2 or PA9  or PA14    PA9  or PA14     PA9  or PB10
+|     TXD| ---> PA3 or PA10 or PA15    PA10 or PA15     PA10 or PB11
+|     VDD| ---> VDD                    VDD              VDD
+|     GND| ---> GND                    GND              GND
++--------+
 ```
+
+Unused RX pins of the bootloader UARTs should not float (use pull-up resistors).
 
 Set your MCU to bootloader mode by using ONE of the following methods:
 - Disconnect your USB-to-serial converter, pull BOOT0 pin (PF4) to VCC (or press and hold the BOOT button, if your board has one), then connect the converter to your USB port. BOOT0 pin (or BOOT button) can be released now.

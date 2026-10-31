@@ -2,6 +2,13 @@
 ## Description
 With this tool, STC8G/8H microcontrollers can be flashed via a simple USB-to-serial converter by utilizing the factory built-in embedded UART bootloader.
 
+The tool currently supports the following microcontrollers (bootloader v7.2 and later):
+- STC8G1K, STC8G2K
+- STC8H1K (incl. T versions), STC8H2K/4K TL/TLCD, STC8H3K, STC8H4K TLR/LCD, STC8H8K
+- STC8A8K/STC8A2K D4
+
+When trimming the IRC (-t), the other option bytes (MCS registers) of the MCU are retained.
+
 ## Preparations
 If necessary, a driver for the USB-to-serial converter used must be installed.
 

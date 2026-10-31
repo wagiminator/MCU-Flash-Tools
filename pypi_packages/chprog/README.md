@@ -2,6 +2,8 @@
 ## Description
 With this tool, almost all WCH microcontrollers (CH5xx, CH6xx, CH32Fxxx, CH32Vxxx, CH32Xxxx, and CH32Lxxx) which have a factory-builtin bootloader (v2.x.x) can be flashed via USB.
 
+Supported microcontrollers: CH54x, CH55x, CH56x, CH57x, CH58x (incl. CH584/CH585), CH59x, CH643, CH32F103, CH32F20x, CH32V103, CH32V20x, CH32V30x, CH32V317, CH32X03x and CH32L103. Microcontrollers without a USB bootloader (e.g. CH32V00x) are not supported; use [rvprog](https://pypi.org/project/rvprog/) with a WCH-LinkE for them.
+
 ## Preparations
 On Linux you do not need to install a driver for the USB bootloader. However, by default Linux will not expose enough permission to upload your code. In order to fix this, open a terminal and run the following commands:
 

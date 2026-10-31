@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   TinyUPDI - Minimal application-specific UPDI programmer based on pyupdi
-# Version:   v1.5
+# Version:   v1.6
 # Year:      2022
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -27,7 +27,7 @@
 #
 # Restrictions:
 # -------------
-# - Target MCU must be a 0, 1, or 2-series tinyAVR.
+# - Target MCU must be a 0, 1, or 2-series tinyAVR (all 37 devices supported).
 # - Only flash and fuses can be programmed.
 # - Firmware file must be a binary (not ELF or HEX!).
 #
@@ -39,7 +39,7 @@
 #   -e, --erase               perform a chip erase (implied with --flash)
 #   -f FLASH, --flash FLASH   BIN file to flash
 #   -fs [FUSES [FUSES ...]], --fuses [FUSES [FUSES ...]]
-#                             fuses to set (syntax: fuse_nr:0xvalue)
+#                             fuses to set (syntax: fuse_nr:0xvalue, fuse_nr 0 - 10)
 #   -t TRIM, --trim TRIM      configure oscillator for given frequency (fuse 2)
 # - Example:
 #   python3 tinyupdi.py -d attiny202 -f firmware.bin -fs 6:0x04 7:0x00 8:0x00 -t 8000000
@@ -74,11 +74,11 @@ def _main():
     parser.add_argument('-f', '--flash', help='BIN file to flash')
     parser.add_argument('-fs', '--fuses', action='append', nargs='*',
                         help='fuses to set (syntax: fuse_nr:0xvalue)')
-    parser.add_argument('-t', '--trim', help='configure oscillator for given frequency (fuse 2)')
+    parser.add_argument('-t', '--trim', type=int, help='configure oscillator for given frequency (fuse 2)')
     args = parser.parse_args(sys.argv[1:])
 
     # Check arguments
-    if not any( (args.fuses, args.flash, args.erase) ):
+    if not any( (args.fuses, args.flash, args.erase, args.trim) ):
         print('No arguments - no action!')
         sys.exit(0)
 
@@ -90,7 +90,29 @@ def _main():
                     sys.stderr.write('ERROR: Bad fuses format {}. Expected fuse_nr:0xvalue\n'.format(fsarg))
                     sys.exit(1)
                 lst = fsarg.split(':0x')
-                fuselist.append( (int(lst[0]), int(lst[1], 16)) )
+                fusenum, value = int(lst[0]), int(lst[1], 16)
+                if fusenum > UPDI_MAX_FUSE or value > 0xFF:
+                    sys.stderr.write('ERROR: Bad fuse {}. Fuse number must be 0 - {}, value 0x00 - 0xff\n'.format(fsarg, UPDI_MAX_FUSE))
+                    sys.exit(1)
+                if fusenum == UPDI_FUSE_SYSCFG0 and (value & 0x0C) != 0x04:
+                    print('WARNING: Fuse 5 (SYSCFG0) disables the UPDI pin, further programming requires a HV programmer!')
+                fuselist.append( (fusenum, value) )
+
+    if args.trim is not None and get_oscillator(args.trim) is None:
+        sys.stderr.write('ERROR: Unsupported frequency {} Hz for -t\n'.format(args.trim))
+        sys.exit(1)
+
+    # Read binary file
+    data = None
+    if args.flash is not None:
+        try:
+            with open(args.flash, 'rb') as f: data = f.read()
+        except Exception as ex:
+            sys.stderr.write('ERROR: ' + str(ex) + '!\n')
+            sys.exit(1)
+        if len(data) == 0:
+            sys.stderr.write('ERROR: BIN file is empty!\n')
+            sys.exit(1)
 
     # Establish connection via serial to UPDI device
     try:
@@ -103,22 +125,31 @@ def _main():
 
     # Programming the device
     try:
+        # Unlock device (chip erase by key) if necessary
+        if tinyupdi.locked:
+            if not ((args.erase) or (data is not None)):
+                raise Exception('Device is locked, use -e or -f to unlock it (erases the chip)')
+            print('Device is locked, unlocking with chip erase ...')
+            tinyupdi.unlock()
+            print('SUCCESS: Device is unlocked.')
+
         # Detect target device
         print('Detecting target MCU ...')
         device = tinyupdi.detect()
         print('SUCCESS: Found %s with %d bytes of flash.' % (device, tinyupdi.flash_size))
         if (args.device is not None) and (not args.device == device):
             raise Exception('Found device is not ' + args.device)
+        if (data is not None) and (len(data) > tinyupdi.flash_size):
+            raise Exception('Not enough memory (file: %d bytes, flash: %d bytes)' % (len(data), tinyupdi.flash_size))
 
         # Perform chip erase
-        if (args.erase) or (args.flash is not None):
+        if (args.erase) or (data is not None):
             print('Performing chip erase ...')
             tinyupdi.erase()
 
         # Flash binary file
-        if args.flash is not None:
+        if data is not None:
             print('Flashing %s to %s ...' % (args.flash, device))
-            with open(args.flash, 'rb') as f: data = f.read()
             tinyupdi.flash_data(data)
             print('Verifying ...')
             tinyupdi.verify_data(data)
@@ -137,12 +168,15 @@ def _main():
         # Write fuse to set oscillator according to frequency
         if args.trim is not None:
             print('Setting oscillator for %s Hz ...' % args.trim)
-            osc = tinyupdi.trim(int(args.trim))
+            osc = tinyupdi.trim(args.trim)
             print('SUCCESS: Oscillator runs at %d MHz with corresponding factory calibration.' % osc)
 
     except Exception as ex:
         sys.stderr.write('ERROR: ' + str(ex) + '!\n')
-        tinyupdi.exit()
+        try:
+            tinyupdi.exit()
+        except:
+            pass
         sys.exit(1)
 
     # Finish all up
@@ -166,6 +200,7 @@ class Programmer(Serial):
         self.flash_pagesize  = 64
         self.flash_start     = 0x8000
         self.flash_size      = 0x0800
+        self.locked          = False
         self.identify()
 
     # Identify port of programmer and enter programming mode
@@ -184,8 +219,8 @@ class Programmer(Serial):
                     continue
                 try:
                     self.__enter_progmode()
-                except:
-                    self.__unlock()
+                except LockedError:
+                    self.locked = True
                 return
         raise Exception('Device not found')
 
@@ -203,6 +238,12 @@ class Programmer(Serial):
                 self.flash_pagesize = dev['flash_pagesize']
                 return dev['name']
         raise Exception('Unknown or unsupported device')
+
+    # Unlock device by chip erase and enter programming mode
+    def unlock(self):
+        self.__unlock()
+        self.__enter_progmode()
+        self.locked = False
 
     # Disable UPDI and serial connection
     def exit(self):
@@ -257,16 +298,13 @@ class Programmer(Serial):
 
     # Configure oscillator for given system freqency
     def trim(self, freq):
-        for x in [1, 2, 4, 8, 16, 32, 64, 6, 10, 12, 24, 48]:
-            if round(20000000 / x) == freq:
-                self.set_fuse(0x02, 0x02)
-                self.verify_fuse(0x02, 0x02)
-                return 20
-            if round(16000000 / x) == freq:
-                self.set_fuse(0x02, 0x01)
-                self.verify_fuse(0x02, 0x01)
-                return 16
-        raise Exception('Unsupported frequency')
+        osc = get_oscillator(freq)
+        if osc is None:
+            raise Exception('Unsupported frequency')
+        value = (self.__read_fuse(UPDI_FUSE_OSCCFG) & 0xfc) | (0x02 if osc == 20 else 0x01)
+        self.set_fuse(UPDI_FUSE_OSCCFG, value)
+        self.verify_fuse(UPDI_FUSE_OSCCFG, value)
+        return osc
 
 
     # ------------------------------------------------------------------------------
@@ -323,7 +361,10 @@ class Programmer(Serial):
     def __ld(self, address):
         self.__send([UPDI_PHY_SYNC, UPDI_LDS | UPDI_ADDRESS_16 | UPDI_DATA_8,
                    address & 0xFF, (address >> 8) & 0xFF])
-        return self.__receive(1)[0]
+        response = self.__receive(1)
+        if len(response) != 1:
+            raise Exception('Failed to communicate with device (ld)')
+        return response[0]
 
     # Load a 16-bit word directly from a 16-bit address
     def __ld16(self, address):
@@ -358,12 +399,18 @@ class Programmer(Serial):
     # Load a number of bytes from the pointer location with pointer post-increment
     def __ld_ptr_inc(self, size):
         self.__send([UPDI_PHY_SYNC, UPDI_LD | UPDI_PTR_INC | UPDI_DATA_8])
-        return self.__receive(size)
+        response = self.__receive(size)
+        if len(response) != size:
+            raise Exception('Failed to communicate with device (ld_ptr_inc)')
+        return response
 
     # Load a 16-bit word value from the pointer location with pointer post-increment
     def __ld_ptr_inc16(self, words):
         self.__send([UPDI_PHY_SYNC, UPDI_LD | UPDI_PTR_INC | UPDI_DATA_16])
-        return self.__receive(words << 1)
+        response = self.__receive(words << 1)
+        if len(response) != words << 1:
+            raise Exception('Failed to communicate with device (ld_ptr_inc16)')
+        return response
 
     # Set the pointer location
     def __st_ptr(self, address):
@@ -398,7 +445,7 @@ class Programmer(Serial):
 
     # Store a value to the repeat counter
     def __repeat(self, repeats):
-        if (repeats - 1) > UPDI_MAX_REPEAT_SIZE:
+        if repeats < 1 or repeats > UPDI_MAX_REPEAT_SIZE:
             raise Exception('Invalid repeat count')
         repeats -= 1
         self.__send([UPDI_PHY_SYNC, UPDI_REPEAT | UPDI_REPEAT_BYTE, repeats & 0xFF])
@@ -426,7 +473,7 @@ class Programmer(Serial):
         self.__reset(apply_reset=True)
         self.__reset(apply_reset=False)
         if not self.__wait_unlocked(100):
-            raise Exception('Failed to enter NVM programming mode: device is locked')
+            raise LockedError('Failed to enter NVM programming mode: device is locked')
         if not self.__in_prog_mode():
             raise Exception('Failed to enter NVM programming mode')
 
@@ -560,11 +607,11 @@ class Programmer(Serial):
         pages = size // self.flash_pagesize
         if size % self.flash_pagesize:
             pages += 1
-        data = bytes()
+        data = bytearray()
         for _ in range(pages):
             data += (self.__read_data_words(address, self.flash_pagesize >> 1))
             address += self.flash_pagesize
-        return data[:size]
+        return bytes(data[:size])
 
     # Write to flash
     def __write_flash(self, address, data):
@@ -582,16 +629,13 @@ class Programmer(Serial):
 
     # Pad data so that there are full pages
     def __pad_data(self, data, blocksize):
-        return data + b'\xFF' * (len(data) % blocksize)
+        if len(data) % blocksize:
+            data = bytes(data) + b'\xFF' * (blocksize - len(data) % blocksize)
+        return data
 
     # Divide data into pages
     def __page_data(self, data, size):
-        total_length = len(data)
-        result = list()
-        while len(result) < total_length / size:
-            result.append(data[:size])
-            data = data[size:]
-        return result
+        return [data[i:i + size] for i in range(0, len(data), size)]
 
 
 # ===================================================================================
@@ -609,19 +653,26 @@ class Timeout:
 
 
 # ===================================================================================
-# Error Class - Raise an Error
+# Error Class
 # ===================================================================================
 
-class PrgError(Exception):
-    def __init__(self, msg='Something went wrong'):
-        super(PrgError, self).__init__(msg)
-        sys.stderr.write('ERROR: ' + msg + '\n')
-        sys.exit(1)
+# Device is locked
+class LockedError(Exception):
+    pass
 
 
 # ===================================================================================
 # Device Definitions and Functions
 # ===================================================================================
+
+# Get oscillator (16 or 20 MHz) for given system frequency (with prescaler)
+def get_oscillator(freq):
+    for x in [1, 2, 4, 8, 16, 32, 64, 6, 10, 12, 24, 48]:
+        if round(20000000 / x) == freq:
+            return 20
+        if round(16000000 / x) == freq:
+            return 16
+    return None
 
 # Get list of supported device names
 def get_supported_devices():
@@ -757,6 +808,10 @@ UPDI_V0_NVMCTRL_CTRLA_PAGE_BUFFER_CLR = 0x04
 UPDI_V0_NVMCTRL_CTRLA_CHIP_ERASE = 0x05
 UPDI_V0_NVMCTRL_CTRLA_ERASE_EEPROM = 0x06
 UPDI_V0_NVMCTRL_CTRLA_WRITE_FUSE = 0x07
+
+UPDI_FUSE_OSCCFG = 0x02
+UPDI_FUSE_SYSCFG0 = 0x05
+UPDI_MAX_FUSE = 0x0A
 
 UPDI_NVM_STATUS_WRITE_ERROR = 2
 UPDI_NVM_STATUS_EEPROM_BUSY = 1

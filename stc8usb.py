@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   stc8usb - USB Programming Tool for STC8H8KxxU Microcontrollers
-# Version:   v0.2
+# Version:   v1.0
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -11,8 +11,8 @@
 # Description:
 # ------------
 # Simple Python tool for flashing STC8H8KxxU microcontrollers via USB utilizing the 
-# factory built-in embedded USB boot loader.
-# !!! THIS TOOL IS IN AN EARLY STAGE OF DEVELOPMENT !!!
+# factory built-in embedded USB boot loader ("STC USB Writer", HID, VID:PID 34BF:1001).
+# Supported devices: STC8H8K16U, STC8H8K32U, STC8H8K48U, STC8H8K60U, STC8H8K64U
 #
 # Dependencies:
 # -------------
@@ -52,12 +52,30 @@ import argparse
 def _main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Minimal command line interface for stc8usb')
-    parser.add_argument('-t', '--trim',  help='trim IRC to frequency in Hz')
+    parser.add_argument('-t', '--trim',  type=int, help='set MCU system frequency in Hz')
     parser.add_argument('-e', '--erase', action='store_true', help='perform chip erase (implied with -f)')
     parser.add_argument('-f', '--flash', help='write BIN file to flash')
     args = parser.parse_args(sys.argv[1:])
 
-    # Establish connection to USB-to-serial converter
+    # Check frequency
+    if args.trim is not None and gettrim(args.trim) is None:
+        sys.stderr.write('ERROR: Unsupported frequency, possible values (Hz):\n')
+        sys.stderr.write(', '.join(str(f['freq']) for f in sorted(STC_FREQUENCIES, key=lambda f: f['freq'])) + '\n')
+        sys.exit(1)
+
+    # Read binary file
+    data = None
+    if args.flash is not None:
+        try:
+            with open(args.flash, 'rb') as f: data = f.read()
+        except Exception as ex:
+            sys.stderr.write('ERROR: ' + str(ex) + '!\n')
+            sys.exit(1)
+        if len(data) == 0:
+            sys.stderr.write('ERROR: BIN file is empty!\n')
+            sys.exit(1)
+
+    # Establish connection to MCU
     try:
         print('Connecting to MCU via USB ...')
         isp = Programmer()
@@ -71,23 +89,26 @@ def _main():
         isp.connect()
         print('SUCCESS: Found %s v%s @ %s.' % (isp.chipname, isp.chipverstr, isp.foscstr))
 
+        # Check if binary fits into flash
+        if data is not None and len(data) > isp.flash_size:
+            raise Exception('Not enough memory (file: %d bytes, flash: %d bytes)' % (len(data), isp.flash_size))
+
         # Perform chip erase
-        if (args.erase) or (args.flash is not None) or (args.trim is not None):
+        if (args.erase) or (data is not None) or (args.trim is not None):
             print('Performing chip erase ...')
             isp.erase()
             print('SUCCESS: Chip is erased.')
 
         # Flash binary file
-        if args.flash is not None:
+        if data is not None:
             print('Flashing %s to %s ...' % (args.flash, isp.chipname))
-            with open(args.flash, 'rb') as f: data = f.read()
             isp.writeflash(0, data)
             print('SUCCESS: %d bytes written.' % len(data))
 
         # Set frequency
         if args.trim is not None:
             print('Setting frequency ...')
-            isp.setfreq(int(args.trim))
+            isp.setfreq(args.trim)
             print('SUCCESS: Frequency set to %s Hz.' % args.trim)
 
         # Close connection
@@ -95,7 +116,10 @@ def _main():
 
     except Exception as ex:
         sys.stderr.write('ERROR: ' + str(ex) + '!\n')
-        isp.close()
+        try:
+            isp.close()
+        except:
+            pass
         sys.exit(1)
 
     print('DONE.')
@@ -112,11 +136,14 @@ class Programmer:
         try:
             self.dev = hid.Device(STC_VID, STC_PID)
         except:
-            raise Exception('Unable to open device')
+            raise Exception('No STC USB bootloader found (VID:PID %04x:%04x)' % (STC_VID, STC_PID))
+        self.is_open = True
 
     # Close connection   
     def close(self):
-        self.dev.close()
+        if self.is_open:
+            self.is_open = False
+            self.dev.close()
 
     #--------------------------------------------------------------------------------
 
@@ -129,18 +156,27 @@ class Programmer:
         block  = [STC_PREFIX, STC_PREFIX ^ 0xff, STC_TX_CODE]
         block += size.to_bytes(2, byteorder='big')
         block += data
-        block += parity.to_bytes(2, byteorder='big')
+        block += (parity & 0xffff).to_bytes(2, byteorder='big')
         block += [STC_SUFFIX]
         block  = self.paddata(bytes(block), STC_HID_SIZE, 0x00)
         self.dev.write(block)
 
-    # Receive data block
-    def receive(self):
-        reply = self.dev.read(STC_HID_SIZE, STC_TIMEOUT)
+    # Receive and check data block
+    def receive(self, timeout=None):
+        reply = self.dev.read(STC_HID_SIZE, STC_TIMEOUT if timeout is None else timeout)
         if len(reply) != STC_HID_SIZE:
             raise Exception('No response from device')
+        if reply[0] != STC_PREFIX or reply[1] != (STC_PREFIX ^ 0xff) or reply[2] != STC_RX_CODE:
+            raise Exception('Invalid data prefix from device')
         size = int.from_bytes(reply[3:5], byteorder='big')
-        return reply[5:size-1]
+        if size < 7 or size + 2 > len(reply):
+            raise Exception('Invalid data size from device')
+        data   = reply[5:size-1]
+        check  = int.from_bytes(reply[size-1:size+1], byteorder='big')
+        parity = STC_RX_CODE + (size >> 8) + (size & 0xff) + sum(data)
+        if (parity & 0xffff) != check or reply[size+1] != STC_SUFFIX:
+            raise Exception('Invalid data checksum from device')
+        return data
 
     #--------------------------------------------------------------------------------
 
@@ -148,6 +184,8 @@ class Programmer:
     def connect(self):
         self.transmit([STC_CMD_INIT])
         reply = self.receive()
+        if len(reply) < 23 or reply[0] != STC_RPL_INFO:
+            raise Exception('Invalid response from MCU')
 
         # Get chip ID
         self.chipid = int.from_bytes(reply[20:22], byteorder='big')
@@ -157,6 +195,7 @@ class Programmer:
         for d in STC_DEVICES:
             if d['id'] == self.chipid:
                 self.device = d
+                break
         if self.device is None:
             raise Exception('Unsupported chip (ID: 0x%04x)' % self.chipid)
         self.chipname   = self.device['name']
@@ -173,65 +212,67 @@ class Programmer:
             self.foscstr = 'untrimmed frequency'
         else:
             self.foscstr = str(self.fosc) + ' Hz'
+
+        # Get option bytes (MCS register values)
+        self.options = reply[9:12] + reply[15:17]
         
         # Set BAUD (dummy)
         self.transmit([STC_CMD_BAUD_SET, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80])
-        self.receive()
+        reply = self.receive()
+        if len(reply) < 1 or reply[0] != STC_CMD_BAUD_SET:
+            raise Exception('Failed to prepare MCU')
         self.transmit([STC_CMD_BAUD_CHECK, 0x00, 0x00, 0x5a, 0xa5])
-        self.receive()
+        reply = self.receive()
+        if len(reply) == 1 and reply[0] == STC_RPL_LOCKED:
+            raise Exception('MCU is locked')
+        if len(reply) < 1 or reply[0] != STC_CMD_BAUD_CHECK:
+            raise Exception('Failed to prepare MCU')
 
     # Disconnect from MCU
     def disconnect(self):
         self.transmit([STC_CMD_EXIT])
-        self.dev.close()
+        self.close()
 
     #--------------------------------------------------------------------------------
 
     # Erase flash
     def erase(self):
         self.transmit([STC_CMD_ERASE, 0, 0, STC_BREAK, STC_BREAK ^ 0xff])
-        reply = self.receive()
-        if reply is None or reply[0] != STC_CMD_ERASE:
+        reply = self.receive(STC_ERASE_TIMEOUT)
+        if len(reply) < 1 or reply[0] != STC_CMD_ERASE:
             raise Exception('Failed to erase flash')
 
     # Write data to flash
     def writeflash(self, addr, data):
-        data = self.paddata(data, STC_PAGE_SIZE, 0xff)
-        size = len(data)
-        if size > (self.flash_size - addr):
+        if len(data) > (self.flash_size - addr):
             raise Exception('Not enough memory')
+        data = self.paddata(bytes(data), STC_PAGE_SIZE, 0xff)
         cmd = STC_CMD_WRITE
-        while size > 0:
-            blocksize = min(size, STC_PAGE_SIZE)
+        for offset in range(0, len(data), STC_PAGE_SIZE):
             block  = [cmd]
-            block += addr.to_bytes(2, byteorder='big')
+            block += (addr + offset).to_bytes(2, byteorder='big')
             block += [STC_BREAK, STC_BREAK ^ 0xff]
-            block += data[:blocksize]
+            block += data[offset:offset + STC_PAGE_SIZE]
             self.transmit(block)
             reply = self.receive()
-            if reply is None or reply[0] != STC_CMD_WRITE_CONT:
-                raise Exception('Failed to write to address 0x%04x' % addr)
-            cmd   = STC_CMD_WRITE_CONT
-            data  = data[blocksize:]
-            addr += blocksize
-            size -= blocksize
+            if len(reply) < 1 or reply[0] != STC_CMD_WRITE_CONT or (len(reply) >= 2 and reply[1] != STC_OK):
+                raise Exception('Failed to write to address 0x%04x' % (addr + offset))
+            cmd = STC_CMD_WRITE_CONT
 
-    # Set frequency by writing option bytes
+    # Set frequency by writing option bytes (keeps the MCS register values of the MCU)
     def setfreq(self, freq):
-        trim = None
-        for f in STC_FREQUENCIES:
-            if f['freq'] == freq:
-                trim = f['trim']
+        trim = gettrim(freq)
         if trim is None:
             raise Exception('Unsupported frequency')
         block  = [STC_CMD_OPTIONS, 0, 0, STC_BREAK, STC_BREAK ^ 0xff]
         block += STC_BLOCK_OPTIONS1
         block += freq.to_bytes(4, byteorder='big')
         block += trim
-        block += STC_BLOCK_OPTIONS2
+        block += [0xff, self.options[0], 0xff, 0xff, STC_BLOCK_OPTIONS2[4]]
+        block += list(self.options[1:5])
         self.transmit(block)
         reply = self.receive()
-        if reply is None or reply[0] != STC_CMD_OPTIONS:
+        if len(reply) < 1 or reply[0] != STC_CMD_OPTIONS or (len(reply) >= 2 and reply[1] != STC_OK):
             raise Exception('Failed to write option bytes')
 
     # Pad data
@@ -239,6 +280,13 @@ class Programmer:
         if (len(data) % pagesize) > 0:
             data += bytes([filler]) * (pagesize - (len(data) % pagesize))
         return data
+
+# Get trim values for frequency
+def gettrim(freq):
+    for f in STC_FREQUENCIES:
+        if f['freq'] == freq:
+            return f['trim']
+    return None
 
 # ===================================================================================
 # Device Constants
@@ -249,6 +297,7 @@ STC_PID            = 0x1001
 STC_HID_SIZE       = 64
 STC_PAGE_SIZE      = 128
 STC_TIMEOUT        = 1000
+STC_ERASE_TIMEOUT  = 10000
 
 STC_PREFIX         = 0x46
 STC_BREAK          = 0x5a
@@ -256,6 +305,8 @@ STC_SUFFIX         = 0x16
 STC_TX_CODE        = 0x6a
 STC_RX_CODE        = 0x68
 STC_RPL_INFO       = 0x50
+STC_RPL_LOCKED     = 0x0f
+STC_OK             = 0x54
 
 STC_CMD_INIT       = 0x00
 STC_CMD_BAUD_SET   = 0x01

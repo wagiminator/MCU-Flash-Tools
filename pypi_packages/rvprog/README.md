@@ -3,11 +3,15 @@
 With this open-source platform-independant command-line tool, WCH RISC-V microcontrollers can be programmed using a RISC-V compatible [WCH-Link](http://www.wch-ic.com/products/WCH-Link.html) via their serial debug interface.
 
 The tool currently supports the following microcontrollers:
-- CH32V002, CH32V003, CH32V004, CH32V005, CH32V006, CH32V007,
-- CH32V103, CH32V203, CH32V208, CH32V303, CH32V305, CH32V307,
-- CH32X033, CH32X035,
-- CH32L103,
-- CH571, CH573, CH581, CH582, CH583, CH591, CH592.
+- CH32V002, CH32V003, CH32V004, CH32V005, CH32V006, CH32V007, CH32M007,
+- CH32V103, CH32V203, CH32V205, CH32V208, CH32V303, CH32V305, CH32V307, CH32V317,
+- CH32V406, CH32V407, CH32V467, CH32H415, CH32H416, CH32H417,
+- CH32X033, CH32X035, CH32X305, CH32X315,
+- CH32L103, CH32M103, CH32M030,
+- CH641, CH643, CH645,
+- CH565, CH569, CH571, CH573, CH581, CH582, CH583, CH584, CH585, CH591, CH592.
+
+Read protection (-l/-u) is not available for CH643 and the CH5xx series. The CH32V205 requires WCH-Link firmware v3.6 or newer.
 
 The tool currently supports the following programmers:
 - WCH-LinkB,
@@ -23,7 +27,7 @@ echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1a86", ATTR{idProduct}=="8012", MODE="6
 sudo udevadm control --reload-rules
 ```
 
-On Windows, if you need to you can install the WinUSB driver over the WCH interface 1 using the [Zadig](https://zadig.akeo.ie/) tool.
+On Windows, if you need to you can install the WinUSB driver over the WCH interface 1 using the [Zadig](https://zadig.akeo.ie/) tool. The libusb backend is installed automatically with the package (libusb-package).
 
 ## Installation
 Ensure that the [prerequisites](https://packaging.python.org/en/latest/tutorials/installing-packages/) for installing Python packages are met. Then execute the following command in the command line:

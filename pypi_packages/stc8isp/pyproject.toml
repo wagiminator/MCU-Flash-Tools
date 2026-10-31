@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name         = "stc8isp"
-version      = "0.3.1"
+version      = "1.0.0"
 description  = "Programming Tool for STC8G/8H Microcontrollers"
-keywords     = ["ISP", "STC", "STC8", "STC8G", "STC8H", "microcontroller"]
+keywords     = ["ISP", "STC", "STC8", "STC8G", "STC8H", "STC8A", "8051", "microcontroller"]
 dependencies = ["pyserial"]
 requires-python = ">=3.8"
 authors = [

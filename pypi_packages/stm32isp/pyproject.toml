@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name         = "stm32isp"
-version      = "0.8.1"
-description  = "Programming Tool for some STM32 Microcontrollers"
-keywords     = ["ISP", "STM32", "STM32C011", "STM32F030", "STM32G030", "STM32L011", "microcontroller"]
+version      = "1.0.0"
+description  = "Programming Tool for STM32 Microcontrollers"
+keywords     = ["ISP", "STM32", "UART bootloader", "STM32C0", "STM32F0", "STM32F1", "STM32F4", "STM32G0", "STM32L0", "microcontroller"]
 dependencies = ["pyserial"]
 requires-python = ">=3.8"
 authors = [

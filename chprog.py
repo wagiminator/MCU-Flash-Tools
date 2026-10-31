@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   chprog - USB Programming Tool for WCH Microcontrollers
-# Version:   v2.5.3
+# Version:   v2.6
 # Year:      2022
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -13,6 +13,7 @@
 # Simple Python tool for flashing WCH microcontrollers
 # (CH5xx, CH6xx, CH32Fxxx, CH32Vxxx, CH32Xxxx, CH32Lxxx)
 # via USB with factory built-in bootloader versions 2.x.x.
+# Microcontrollers without USB bootloader (e.g. CH32V00x) are not supported.
 #
 # References:
 # -----------
@@ -20,6 +21,8 @@
 # - Frank Zago, https://github.com/frank-zago/isp55e0
 # - Aaron Christophel, https://github.com/atc1441/chflasher
 # - juliuswwj, https://github.com/juliuswwj/wchprog
+# Chip IDs and family parameters were checked against wchisp:
+# - ch32-rs, https://github.com/ch32-rs/wchisp
 #
 # Dependencies:
 # -------------
@@ -55,19 +58,23 @@ def _main():
         sys.stderr.write('ERROR: No bin file selected!\n')
         sys.exit(1)
 
+    isp = None
     try:
+        with open(sys.argv[1], 'rb') as f: data = f.read()
+        if len(data) == 0:
+            raise Exception('The bin file is empty')
         print('Connecting to bootloader ...')
         isp = Programmer()
         isp.detect()
         print('Found %s with bootloader v%s.' % (isp.chipname, isp.bootloader))
         print('Flashing %s to %s ...' % (sys.argv[1], isp.chipname))
-        with open(sys.argv[1], 'rb') as f: data = f.read()
         isp.flash(data)
         print('Verifying %d bytes ...' % len(data))
         isp.verify(data)
         isp.exit()
     except Exception as ex:
         sys.stderr.write('ERROR: %s!\n' % str(ex))
+        if isp is not None: isp.close()
         sys.exit(1)
     print('DONE.')
     sys.exit(0)
@@ -98,16 +105,24 @@ class Programmer:
 
         # Set initial chip parameters
         self.device    = None
-        self.uidlen    = 4
+        self.uidlen    = 8
         self.lastwrite = False
         self.wpremove  = False
+        self.minerase  = 8
         self.xorkey    = bytearray(CH_XOR_KEY_LEN)
 
-    # Send command and return reply
-    def sendcommand(self, stream):
-        self.dev.write(CH_USB_EP_OUT, stream)
-        try:    return self.dev.read(CH_USB_EP_IN, CH_USB_PACKET_SIZE, CH_USB_TIMEOUT)
-        except: return None
+    # Send command and return reply (raises an exception if there is no valid reply)
+    def sendcommand(self, stream, timeout = None):
+        if timeout is None: timeout = CH_USB_TIMEOUT
+        try:
+            self.dev.write(CH_USB_EP_OUT, stream)
+            reply = self.dev.read(CH_USB_EP_IN, CH_USB_PACKET_SIZE, timeout)
+        except Exception:
+            raise Exception('No reply from bootloader (command 0x%02x)' % stream[0])
+        # Reply: command, status, length (2 bytes, little endian), payload
+        if len(reply) < 5 or reply[0] != stream[0]:
+            raise Exception('Invalid reply from bootloader (command 0x%02x)' % stream[0])
+        return reply
 
     # Detect, identify and setup chip
     def detect(self):
@@ -128,10 +143,14 @@ class Programmer:
         self.chipfamily = identanswer[5]
         self.chipid     = (self.chipfamily << 8) + self.chiptype
 
-        # Find device in dictionary
+        # Find device in dictionary (or use the family default if there is one)
         for d in DEVICES:
             if d['id'] == self.chipid:
                 self.device = d
+        if self.device is None:
+            for d in DEVICES:
+                if d['id'] == (self.chipfamily << 8) + 0xff:
+                    self.device = d
         if self.device is None:
             raise Exception('Unsupported chip (ID: 0x%04x)' % self.chipid)
 
@@ -139,12 +158,14 @@ class Programmer:
         self.chipname        = self.device['name']
         self.code_flash_size = self.device['code_size']
         self.data_flash_size = self.device['data_size']
-        if self.chipfamily > 0x11:
-            self.uidlen = 8
+        if self.chipfamily in UID4LIST:
+            self.uidlen = 4
         if self.chipfamily in LASTWRITELIST:
             self.lastwrite = True
         if self.chipfamily in WPREMOVELIST:
             self.wpremove = True
+        if self.chipfamily in MINERASE4LIST:
+            self.minerase = 4
         self.chipuid = cfganswer[22:(22 + self.uidlen)]
 
         # Create local encryption key
@@ -156,13 +177,7 @@ class Programmer:
         self.xorkey[CH_XOR_KEY_LEN - 1] = (sum + self.chiptype) & 0xff
 
         # Send encryption key
-        sum = 0
-        for x in range(CH_XOR_KEY_LEN):
-            sum += self.xorkey[x]
-        stream = bytes((CH_CMD_KEY_SET, 0x1e, 0x00)) + bytes(0x1e)
-        reply = self.sendcommand(stream)
-        if reply[4] != (sum & 0xff):
-            raise Exception('Failed to set encryption key')
+        self.sendkey()
 
         # Unlock chip (remove read protection)
         if (self.wpremove) and (self.configdata[0] == 0xff):
@@ -172,14 +187,24 @@ class Programmer:
             self.configdata[8] &= 0x7f
             self.sendcommand(b'\xa8\x0e\x00\x07\x00' + self.configdata)
 
+    # Send encryption key (the key seed is zero, the key is derived from the chip UID)
+    def sendkey(self):
+        sum = 0
+        for x in range(CH_XOR_KEY_LEN):
+            sum += self.xorkey[x]
+        stream = bytes((CH_CMD_KEY_SET, 0x1e, 0x00)) + bytes(0x1e)
+        reply = self.sendcommand(stream)
+        if reply[4] != (sum & 0xff):
+            raise Exception('Failed to set encryption key')
+
     # Erase code flash
     def erase(self, size):
         if size > self.code_flash_size:
-            raise Exception('Not enough memory')
+            raise Exception('Not enough memory (%d bytes, chip has %d bytes)' % (size, self.code_flash_size))
         size = (size + 1023) // 1024
-        if size < 8:  size = 8
+        if size < self.minerase:  size = self.minerase
         stream = (CH_CMD_CODE_ERASE, 0x04, 0x00, size & 0xff, size >> 8, 0x00, 0x00)
-        reply = self.sendcommand(stream)
+        reply = self.sendcommand(stream, CH_USB_TIMEOUT_ERASE)
         if reply[4] != 0x00:
             raise Exception('Failed to erase chip')
 
@@ -191,18 +216,26 @@ class Programmer:
     # Verify data stream in code flash
     def verify(self, data):
         if len(data) > self.code_flash_size:
-            raise Exception('Not enough memory')
+            raise Exception('Not enough memory (%d bytes, chip has %d bytes)' % (len(data), self.code_flash_size))
+        self.sendkey()
         self.writeflash(data, CH_CMD_CODE_VERIFY)
 
-    # Reboot and exit
+    # Reboot and exit (old bootloaders do not reply)
     def exit(self):
-        self.sendcommand(CH_STR_REBOOT)
+        try:    self.sendcommand(CH_STR_REBOOT, CH_USB_TIMEOUT_REBOOT)
+        except: None
+        self.close()
+
+    # Release USB device
+    def close(self):
+        try:    usb.util.dispose_resources(self.dev)
+        except: None
 
     # Perform flash operations
     def writeflash(self, data, mode):
-        # Encrypt data
+        # Pad data with 0xff to a multiple of 8 bytes and encrypt it
         if (len(data) % CH_XOR_KEY_LEN) > 0:
-            data += b'0xff' * (CH_XOR_KEY_LEN - (len(data) % CH_XOR_KEY_LEN))
+            data += b'\xff' * (CH_XOR_KEY_LEN - (len(data) % CH_XOR_KEY_LEN))
         data = bytearray(data)
         for x in range(len(data)):
             data[x] ^= self.xorkey[x % CH_XOR_KEY_LEN]
@@ -218,11 +251,11 @@ class Programmer:
             stream += (rest & 0xff).to_bytes(1, byteorder='little')
             stream += data[offset:(offset + pkt_len)]
             reply   = self.sendcommand(stream)
-            if reply[4] != 0x00 and reply[4] != 0xfe and reply[4] != 0xf5:
-                if mode == CH_CMD_CODE_WRITE:
+            if mode == CH_CMD_CODE_WRITE:
+                if reply[4] not in (0x00, 0xfe, 0xf5):
                     raise Exception('Failed to write at offset 0x%08x' % offset)
-                elif mode == CH_CMD_CODE_VERIFY:
-                    raise Exception('Failed to verify at offset 0x%08x' % offset)
+            elif reply[4] != 0x00:
+                raise Exception('Failed to verify at offset 0x%08x' % offset)
             offset += pkt_len
             rest   -= pkt_len
 
@@ -242,7 +275,9 @@ CH_USB_INTERFACE    = 0         # interface number
 CH_USB_EP_OUT       = 0x02      # endpoint for command transfer out
 CH_USB_EP_IN        = 0x82      # endpoint for reply transfer in
 CH_USB_PACKET_SIZE  = 64        # packet size
-CH_USB_TIMEOUT      = 5000      # timeout for USB operations
+CH_USB_TIMEOUT      = 5000      # timeout for USB operations (ms)
+CH_USB_TIMEOUT_ERASE  = 10000   # timeout for code flash erase (ms)
+CH_USB_TIMEOUT_REBOOT = 500     # timeout for reboot reply (ms)
 
 CH_CMD_CHIP_TYPE    = 0xa1
 CH_CMD_REBOOT       = 0xa2
@@ -267,6 +302,8 @@ CH_XOR_KEY_LEN      = 8
 # ===================================================================================
 # Device definitions
 # ===================================================================================
+# id = (family << 8) + type as reported by the bootloader. An id with type 0xff is
+# the default for unknown types of this family.
 
 DEVICES = [
     {'name': 'CH543', 'id': 0x1243, 'code_size':  14336, 'data_size':   256},
@@ -283,9 +320,19 @@ DEVICES = [
     {'name': 'CH555', 'id': 0x1155, 'code_size':  61440, 'data_size':  1024},
     {'name': 'CH556', 'id': 0x1156, 'code_size':  61440, 'data_size':  1024},
     {'name': 'CH557', 'id': 0x1157, 'code_size':  61440, 'data_size':  1024},
-    {'name': 'CH558', 'id': 0x1158, 'code_size':  61440, 'data_size':  1024},
+    {'name': 'CH558', 'id': 0x1158, 'code_size':  32768, 'data_size':  5120},
     {'name': 'CH559', 'id': 0x1159, 'code_size':  61440, 'data_size':  1024},
 
+    {'name': 'CH563', 'id': 0x1063, 'code_size': 229376, 'data_size': 28672},
+    {'name': 'CH563', 'id': 0x1042, 'code_size': 229376, 'data_size': 28672},
+    {'name': 'CH563', 'id': 0x1043, 'code_size': 229376, 'data_size': 28672},
+    {'name': 'CH563', 'id': 0x1044, 'code_size': 229376, 'data_size': 28672},
+    {'name': 'CH563', 'id': 0x1045, 'code_size': 229376, 'data_size': 28672},
+    {'name': 'CH565', 'id': 0x1065, 'code_size': 458752, 'data_size': 32768},
+    {'name': 'CH566', 'id': 0x1066, 'code_size':  65536, 'data_size': 32768},
+    {'name': 'CH567', 'id': 0x1067, 'code_size': 196608, 'data_size': 32768},
+    {'name': 'CH568', 'id': 0x1068, 'code_size': 196608, 'data_size': 32768},
+    {'name': 'CH569', 'id': 0x1069, 'code_size': 458752, 'data_size': 32768},
     {'name': 'CH563', 'id': 0x1163, 'code_size': 229376, 'data_size': 28672},
     {'name': 'CH565', 'id': 0x1165, 'code_size': 458752, 'data_size': 32768},
     {'name': 'CH567', 'id': 0x1167, 'code_size': 196608, 'data_size': 32768},
@@ -297,12 +344,15 @@ DEVICES = [
     {'name': 'CH572', 'id': 0x1372, 'code_size': 245760, 'data_size':     0},
     {'name': 'CH573', 'id': 0x1373, 'code_size': 458752, 'data_size': 32768},
     {'name': 'CH577', 'id': 0x1377, 'code_size': 131072, 'data_size':  2048},
+    {'name': 'CH578', 'id': 0x1358, 'code_size': 163840, 'data_size':  2048},
     {'name': 'CH578', 'id': 0x1378, 'code_size': 163840, 'data_size':  2048},
     {'name': 'CH579', 'id': 0x1379, 'code_size': 256000, 'data_size':  2048},
 
     {'name': 'CH581', 'id': 0x1681, 'code_size': 196608, 'data_size': 32768},
     {'name': 'CH582', 'id': 0x1682, 'code_size': 458752, 'data_size': 32768},
     {'name': 'CH583', 'id': 0x1683, 'code_size': 458752, 'data_size': 32768},
+    {'name': 'CH584', 'id': 0x1684, 'code_size': 458752, 'data_size': 32768},
+    {'name': 'CH585', 'id': 0x1685, 'code_size': 458752, 'data_size': 32768},
 
     {'name': 'CH591', 'id': 0x2291, 'code_size': 196608, 'data_size': 32768},
     {'name': 'CH592', 'id': 0x2292, 'code_size': 458752, 'data_size': 32768},
@@ -311,9 +361,12 @@ DEVICES = [
     {'name': 'CH643Q',       'id': 0x2431, 'code_size':  63488, 'data_size': 0},
     {'name': 'CH643L',       'id': 0x2433, 'code_size':  63488, 'data_size': 0},
     {'name': 'CH643U',       'id': 0x2434, 'code_size':  63488, 'data_size': 0},
+    {'name': 'CH643',        'id': 0x24ff, 'code_size':  63488, 'data_size': 0},
 
     {'name': 'CH32F103x6',   'id': 0x1432, 'code_size':  32768, 'data_size': 0},
+    {'name': 'CH32F103x8',   'id': 0x1433, 'code_size':  65536, 'data_size': 0},
     {'name': 'CH32F103x8',   'id': 0x143f, 'code_size':  65536, 'data_size': 0},
+    {'name': 'CH32F103x8',   'id': 0x14ff, 'code_size':  65536, 'data_size': 0},
 
     {'name': 'CH32F203VCT6', 'id': 0x1830, 'code_size': 262144, 'data_size': 0},
     {'name': 'CH32F203RCT6', 'id': 0x1831, 'code_size': 262144, 'data_size': 0},
@@ -321,6 +374,8 @@ DEVICES = [
     {'name': 'CH32F203RBT6', 'id': 0x1833, 'code_size': 131072, 'data_size': 0},
     {'name': 'CH32F205RBT6', 'id': 0x1850, 'code_size': 131072, 'data_size': 0},
     {'name': 'CH32F207VCT6', 'id': 0x1870, 'code_size': 262144, 'data_size': 0},
+    {'name': 'CH32F208WBU6', 'id': 0x1880, 'code_size': 491520, 'data_size': 0},
+    {'name': 'CH32F208RBT6', 'id': 0x1881, 'code_size': 131072, 'data_size': 0},
     {'name': 'CH32F203C8U6', 'id': 0x2030, 'code_size':  65536, 'data_size': 0},
     {'name': 'CH32F203C8T6', 'id': 0x2031, 'code_size':  65536, 'data_size': 0},
     {'name': 'CH32F203K8T6', 'id': 0x2032, 'code_size':  65536, 'data_size': 0},
@@ -329,7 +384,9 @@ DEVICES = [
     {'name': 'CH32F208RBT6', 'id': 0x2081, 'code_size': 131072, 'data_size': 0},
 
     {'name': 'CH32V103x6',   'id': 0x1532, 'code_size':  32768, 'data_size': 0},
+    {'name': 'CH32V103x8',   'id': 0x1533, 'code_size':  65536, 'data_size': 0},
     {'name': 'CH32V103x8',   'id': 0x153f, 'code_size':  65536, 'data_size': 0},
+    {'name': 'CH32V103x8',   'id': 0x15ff, 'code_size':  65536, 'data_size': 0},
 
     {'name': 'CH32V203C8U6', 'id': 0x1930, 'code_size':  65536, 'data_size': 0},
     {'name': 'CH32V203C8T6', 'id': 0x1931, 'code_size':  65536, 'data_size': 0},
@@ -339,6 +396,7 @@ DEVICES = [
     {'name': 'CH32V203K6T6', 'id': 0x1935, 'code_size':  32768, 'data_size': 0},
     {'name': 'CH32V203G6U6', 'id': 0x1936, 'code_size':  32768, 'data_size': 0},
     {'name': 'CH32V203F6P6', 'id': 0x1937, 'code_size':  32768, 'data_size': 0},
+    {'name': 'CH32V203F6P6', 'id': 0x1939, 'code_size':  32768, 'data_size': 0},
     {'name': 'CH32V203F8P6', 'id': 0x193a, 'code_size':  65536, 'data_size': 0},
     {'name': 'CH32V203G8R6', 'id': 0x193b, 'code_size':  65536, 'data_size': 0},
     {'name': 'CH32V203F8U6', 'id': 0x193e, 'code_size':  65536, 'data_size': 0},
@@ -358,6 +416,9 @@ DEVICES = [
     {'name': 'CH32V307RCT6', 'id': 0x1771, 'code_size': 262144, 'data_size': 0},
     {'name': 'CH32V307WCU6', 'id': 0x1773, 'code_size': 262144, 'data_size': 0},
 
+    {'name': 'CH32V317VCT6', 'id': 0x2670, 'code_size': 262144, 'data_size': 0},
+    {'name': 'CH32V317WCU6', 'id': 0x2673, 'code_size': 262144, 'data_size': 0},
+
     {'name': 'CH32X033F8P6', 'id': 0x235a, 'code_size':  63488, 'data_size': 0},
     {'name': 'CH32X035R8T6', 'id': 0x2350, 'code_size':  63488, 'data_size': 0},
     {'name': 'CH32X035C8T6', 'id': 0x2351, 'code_size':  63488, 'data_size': 0},
@@ -375,8 +436,11 @@ DEVICES = [
     {'name': 'CH32L103F8U6', 'id': 0x253d, 'code_size':  65536, 'data_size': 0}
 ]
 
-LASTWRITELIST = (0x12, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x22, 0x23, 0x24, 0x25)
-WPREMOVELIST  = (0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x22, 0x23, 0x24, 0x25)
+# Family parameters
+UID4LIST      = (0x11,)     # 4-byte UID for the encryption key (all others: 8 bytes)
+MINERASE4LIST = (0x10,)     # minimum code flash erase of 4KB (all others: 8KB)
+LASTWRITELIST = (0x10, 0x12, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x20, 0x22, 0x23, 0x24, 0x25, 0x26)
+WPREMOVELIST  = (0x14, 0x15, 0x17, 0x18, 0x19, 0x20, 0x23, 0x24, 0x25, 0x26)
 
 # ===================================================================================
 

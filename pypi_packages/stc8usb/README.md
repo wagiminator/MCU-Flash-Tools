@@ -2,6 +2,8 @@
 ## Description
 This tool allows you to flash STC8H8KxxU microcontrollers through their USB interface, using the pre-installed embedded USB bootloader.
 
+Supported microcontrollers: STC8H8K16U, STC8H8K32U, STC8H8K48U, STC8H8K60U, STC8H8K64U.
+
 ## Preparations
 Because the USB bootloader functions as a Human Interface Device (HID), there's no need to install drivers. However, Linux doesn't initially grant sufficient permissions to access the bootloader. To resolve this issue, open a terminal and execute the following commands:
 
@@ -34,6 +36,8 @@ Optional arguments:
 Example:
 stc8usb -t 24000000 -f firmware.bin
 ```
+
+Possible values for -t (Hz): 250000, 500000, 1000000, 1382400, 2000000, 2764800, 3000000, 4000000, 5000000, 5529600, 6000000, 8000000, 10000000, 11059200, 12000000, 16000000, 18432000, 20000000, 22118400, 24000000, 27000000, 30000000, 33177600, 35000000, 36864000, 40000000, 44236800, 48000000. The other option bytes of the MCU are retained.
 
 ## Links
 - [MCU Flash Tools](https://github.com/wagiminator/MCU-Flash-Tools)

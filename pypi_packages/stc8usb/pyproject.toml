@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name         = "stc8usb"
-version      = "0.2.1"
+version      = "1.0.0"
 description  = "USB Programming Tool for STC8H8KxxU Microcontrollers"
-keywords     = ["ISP", "STC", "STC8", "STC8H8K64U", "STC8H8K32U", "microcontroller"]
+keywords     = ["ISP", "USB", "STC", "STC8", "STC8H8K64U", "STC8H8K32U", "STC8H8K16U", "microcontroller"]
 dependencies = ["hid"]
 requires-python = ">=3.8"
 authors = [

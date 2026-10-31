@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   rvprog - Programming Tool for WCH RISC-V Microcontrollers with WCH-LinkE
-# Version:   v1.11
+# Version:   v1.12
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -13,23 +13,30 @@
 # Simple Python tool for flashing WCH RISC-V microcontrollers using the WCH-LinkE,
 # WCH-LinkW, WCH-LinkB, or compatible programmers/debuggers.
 # Currently supports: CH32V002, CH32V003, CH32V004, CH32V005, CH32V006, CH32V007,
-#                     CH32V103, CH32V203, CH32V205, CH32V208, CH32V303, CH32V305,
-#                     CH32V307, CH32V317,
-#                     CH32X033, CH32X035, CH32L103,
-#                     CH571, CH573, CH581, CH582, CH583, CH591, CH592.
+#                     CH32M007, CH32V103, CH32V203, CH32V205, CH32V208, CH32V303,
+#                     CH32V305, CH32V307, CH32V317, CH32V406, CH32V407, CH32V467,
+#                     CH32X033, CH32X035, CH32X305, CH32X315, CH32L103, CH32M103,
+#                     CH32M030, CH32H415, CH32H416, CH32H417,
+#                     CH641, CH643, CH645,
+#                     CH565, CH569, CH571, CH573, CH581, CH582, CH583, CH584,
+#                     CH585, CH591, CH592.
 #
 # References:
 # -----------
-# - CNLohr minichlink: https://github.com/cnlohr/ch32v003fun/tree/master/minichlink
+# - CNLohr minichlink: https://github.com/cnlohr/ch32fun/tree/master/minichlink
+# - ch32-rs wlink: https://github.com/ch32-rs/wlink
+# - WCH EVT DBGMCU sources (chip IDs): https://github.com/openwch
 # - My mighty USB sniffer
 #
 # Dependencies:
 # -------------
 # - PyUSB
+# - libusb-package (Windows only, provides the libusb DLL)
 #
 # Operating Instructions:
 # -----------------------
 # You need to install PyUSB to use rvprog. Install it via "pip install pyusb".
+# On Windows, also install the libusb backend via "pip install libusb-package".
 #
 # Linux users need permission to access the device. Run:
 # echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1a86", ATTR{idProduct}=="8010", MODE="666"' | sudo tee /etc/udev/rules.d/99-WCH-LinkE.rules
@@ -83,14 +90,29 @@ def _main():
     if not any( (args.armmode, args.rvmode, args.unbrick, args.unlock, args.lock, args.erase, args.pingpio, args.pinreset, args.flash) ):
         print('No arguments - no action!')
         sys.exit(0)
+    if args.pingpio and args.pinreset:
+        sys.stderr.write('ERROR: Options -G and -R exclude each other!\n')
+        sys.exit(1)
+
+    # Read binary file
+    data = None
+    if args.flash is not None:
+        try:
+            with open(args.flash, 'rb') as f: data = f.read()
+        except Exception as ex:
+            sys.stderr.write('ERROR: %s!\n' % str(ex))
+            sys.exit(1)
+        if len(data) == 0:
+            sys.stderr.write('ERROR: BIN file is empty!\n')
+            sys.exit(1)
 
     # Switch WCH-Link to RISC-V mode
     try:
         if args.rvmode:
             print('Searching for WCH-Link in ARM mode ...')
-            armlink = usb.core.find(idVendor = CH_VENDOR_ID, idProduct = CH_ARM_ID)
+            armlink = usb.core.find(idVendor = CH_VENDOR_ID, idProduct = CH_ARM_ID, backend = _backend())
             if armlink is None:
-                raise Exception('No WCH-Link in ARM mode found!')
+                raise Exception('No WCH-Link in ARM mode found')
             print('SUCCESS: Found WCH-Link in ARM mode.')
             print('Switching WCH-Link to RISC-V mode ...')
             armlink.write(0x02, b'\x81\xff\x01\x52')
@@ -119,10 +141,12 @@ def _main():
             print('SUCCESS: Chip is unbricked.')
 
         # Establish connection to target MCU
-        if any( (args.unlock, args.lock, args.erase, args.flash, args.pingpio, args.pinreset) ):
+        if any( (args.unlock, args.lock, args.erase, data, args.pingpio, args.pinreset) ):
             print('Connecting to MCU ...')
             isp.connect()
             print('SUCCESS: Connected to %s with %d bytes of flash.' % (isp.chipname, isp.flashsize))
+            if isp.family.get('minlink', 0) > isp.linkvercode:
+                print('WARNING: WCH-Link firmware may be too old for this MCU!')
 
         # Unlock chip
         if args.unlock:
@@ -137,9 +161,8 @@ def _main():
             print('SUCCESS: Chip is erased.')
 
         # Flash binary file
-        if args.flash is not None:
+        if data is not None:
             print('Flashing %s to %s ...' % (args.flash, isp.chipname))
-            with open(args.flash, 'rb') as f: data = f.read()
             isp.flash_data(data)
             print('SUCCESS: %d bytes written and verified.' % len(data))
 
@@ -173,7 +196,10 @@ def _main():
 
     except Exception as ex:
         sys.stderr.write('ERROR: %s!\n' % str(ex))
-        isp.exit()
+        try:
+            isp.exit()
+        except:
+            pass
         sys.exit(1)
 
     print('DONE.')
@@ -183,11 +209,19 @@ def _main():
 # Programmer Class
 # ===================================================================================
 
+# Get libusb backend (libusb-package provides the libusb DLL on Windows)
+def _backend():
+    try:
+        import libusb_package
+        return libusb_package.get_libusb1_backend()
+    except ImportError:
+        return None
+
 class Programmer:
     # Init programmer
     def __init__(self):
         # Find programmer
-        self.dev = usb.core.find(idVendor = CH_VENDOR_ID, idProduct = CH_PRODUCT_ID)
+        self.dev = usb.core.find(idVendor = CH_VENDOR_ID, idProduct = CH_PRODUCT_ID, backend = _backend())
         if self.dev is None:
             raise Exception('WCH-Link not found. Check if device is in RISC-V mode')
 
@@ -196,36 +230,29 @@ class Programmer:
 
         # Get programmer info
         reply = self.sendcommand(b'\x81\x0d\x01\x01')
-        if reply[5]   == 0x01:
-            self.linkname = 'WCH-Link based on CH549'
-        elif reply[5] == 0x02:
-            self.linkname = 'WCH-Link based on CH32V307'
-        elif reply[5] == 0x03:
-            self.linkname = 'WCH-Link based on CH32V203'
-        elif reply[5] == 0x04:
-            self.linkname = 'WCH-LinkB'
-        elif reply[5] == 0x05:
-            self.linkname = 'WCH-LinkW'
-        elif reply[5] == 0x12:
-            self.linkname = 'WCH-LinkE'
-        else:
-            self.linkname = 'Unknown WCH Programmer (code: %d)' % reply[5]
-        self.linkdevice  = reply[5]
+        if len(reply) < 5 or reply[0] != 0x82:
+            raise Exception('Failed to get WCH-Link info')
+        self.linkdevice  = reply[5] if len(reply) > 5 else 0x01
+        self.linkname    = CH_LINKNAMES.get(self.linkdevice, 'Unknown WCH Programmer (code: %d)' % self.linkdevice)
         self.linkvercode = (reply[3] * 100) + reply[4]
-        self.linkversion = '%d.%d' % (reply[3], reply[4])
+        packed = (reply[3] << 4) + reply[4]
+        if packed >= 0x30:          # firmware v3.0 and later reports e.g. 2.22 for v3.6
+            self.linkversion = '%d.%d' % (packed >> 4, packed & 0x0f)
+        else:
+            self.linkversion = '%d.%d' % (reply[3], reply[4])
+        self.nrstgpio = None
 
     # Connect programmer to MCU
     def connect(self):
         # Connect to target MCU and get type
         self.chipid = None
-        success = 0
+        self.family = None
         for i in range(3):
             if i > 0:
-                print('Failed to connect, trying to unbrick MCU ...')
-                self.sendcommand(b'\x81\x0d\x01\x0f\x09')
-            reply = self.sendcommand(b'\x81\x0d\x01\x02')
-            if len(reply) < 8 or bytes(reply[:4]) == b'\x81\x55\x01\x01':
+                print('Failed to connect, retrying ...')
                 time.sleep(0.2)
+            reply = self.sendcommand(b'\x81\x0d\x01\x02')
+            if len(reply) < 8 or reply[0] != 0x82:
                 continue
 
             # Get chip identification data
@@ -234,48 +261,38 @@ class Programmer:
             self.chiptype   = reply[5]
             self.chipid     = (reply[4] << 8) + reply[5]
             self.chipfamily = self.chipid >> 4
-            self.device     = None
-            self.family     = None
-
-            # Find family in dictionary
-            for f in FAMILIES:
-                if f['id'] == self.chipfamily:
-                    self.family = f
-            if self.family is None:
-                continue
-
-            # Find device in dictionary
-            for d in DEVICES:
-                if d['id'] == self.chipid:
-                    self.device = d
-                    break
-
-            # Unknown package/variant of a known family: use the family settings
-            if self.device is None:
-                if self.family['optbytes'] is None:
-                    continue
-                self.device = {'name': '%s (ID 0x%04x)' % (self.family['name'], self.chipid)}
-
-            # Success
-            self.chipname = self.device['name']
-            success = 1
             break
 
         # Unsuccessful
-        if success == 0:
-            if self.chipid is None:
-                raise Exception('Failed to identify chip')
-            else:
-                raise Exception('Unsupported chip (ID: 0x%04x)' % self.chipid)
+        if self.chipid is None:
+            raise Exception('Failed to identify chip (bricked chip: try -b)')
 
-        # Read some chip data
-        if self.family['optbytes'] is not None:
+        # Find family and device in dictionary
+        for f in FAMILIES:
+            if f['id'] == self.chipfamily:
+                self.family = f
+                break
+        if self.family is None:
+            raise Exception('Unsupported chip (ID: 0x%04x, type: 0x%02x)' % (self.chipid, self.chipmark))
+        self.device = None
+        for d in DEVICES:
+            if d['id'] == self.chipid:
+                self.device = d
+                break
+
+        # Unknown package/variant of a known family: use the family settings
+        if self.device is None:
+            self.device = {'name': '%s (ID 0x%04x)' % (self.family['name'], self.chipid)}
+        self.chipname = self.device['name']
+
+        # Get flash size
+        self.flashsize = self.device.get('code_size', self.family.get('code_size', 0))
+        if self.family['esig']:
             reply = self.sendcommand((0x81, 0x11, 0x01, self.chipmark))
-            self.flashsize = int.from_bytes(reply[2:4], byteorder='big') * 1024
-            if self.flashsize == 0:                                 # programmer did not report a size
-                self.flashsize = self.device.get('code_size', self.family.get('code_size', 0))
-        else:
-            self.flashsize = self.device['code_size']
+            if len(reply) >= 4:
+                size = int.from_bytes(reply[2:4], byteorder='big')
+                if size not in (0x0000, 0xffff, 0xe339):            # not programmed
+                    self.flashsize = size * 1024
 
     # Send command to programmer
     def sendcommand(self, stream):
@@ -308,30 +325,66 @@ class Programmer:
     def unbrick(self):
         self.sendcommand(b'\x81\x0d\x01\x0f\x09')
 
+    # Reattach MCU (required after changing the read protection)
+    def reattach(self):
+        self.sendcommand(b'\x81\x0d\x01\xff')
+        self.sendcommand(b'\x81\x0d\x01\x02')
+
+    # Check if MCU supports read protection
+    def checkprotect(self):
+        if self.family['protect'] is None:
+            raise Exception('Read protection is not supported for this MCU')
+
+    # Get option bytes for read protection command
+    def optionbytes(self):
+        opt = self.family['protect']
+        if opt and self.family.get('nrst') and self.nrstgpio is not None:
+            opt = bytes([(opt[0] | 0x18) if self.nrstgpio else (opt[0] & 0xe7 | 0x10)]) + opt[1:]
+        return opt
+
     # Lock MCU (set read protection)
     def lock(self):
-        if self.family['optbytes'] is not None:
-            self.sendcommand(b'\x81\x06\x08\x03' + self.family['optbytes'])
+        self.checkprotect()
+        opt = self.optionbytes()
+        if opt:
+            self.sendcommand(b'\x81\x06\x08\x03' + opt)
+        else:
+            self.sendcommand(b'\x81\x06\x01\x03')
+        self.reattach()
+
+    # Check if MCU is locked
+    def islocked(self):
+        if self.family['protect'] is None:
+            return False
+        reply = self.sendcommand(b'\x81\x06\x01\x01')
+        return len(reply) >= 4 and reply[3] == 0x01
 
     # Unlock MCU (remove read protection -> erase chip!!!)
     def unlock(self):
-        if self.family['optbytes'] is not None:
-            reply = self.sendcommand(b'\x81\x06\x01\x01')
-            if reply[3] == 0x01:
-                self.sendcommand(b'\x81\x06\x08\x02' + self.family['optbytes'])
+        self.checkprotect()
+        if self.islocked():
+            opt = self.optionbytes()
+            if opt:
+                self.sendcommand(b'\x81\x06\x08\x02' + opt)
+            else:
+                self.sendcommand(b'\x81\x06\x01\x02')
+            self.reattach()
 
     # Perform a whole chip erase
     def erase(self):
+        if self.islocked():
+            self.unlock()
         self.sendcommand(b'\x81\x02\x01\x01')
         self.sendcommand(b'\x81\x0d\x01\x02')
 
     # Make reset pin a normal GPIO pin (0=RESET, 1=GPIO)
     def setnrstasgpio(self, state):
-        if self.chipseries == 0x00:
+        if self.family.get('nrst'):
             if state:
                 self.sendcommand(b'\x81\x06\x08\x02\xff\xff\xff\xff\xff\xff\xff')
             else:
                 self.sendcommand(b'\x81\x06\x08\x02\xf7\xff\xff\xff\xff\xff\xff')
+            self.nrstgpio = state
         else:
             raise Exception('RST pin option not available for this MCU')
 
@@ -356,26 +409,19 @@ class Programmer:
 
     # Get padded data length
     def padlen(self, data, pagesize):
-        if (len(data) % pagesize) == 0:
-            return len(data)
-        else:
-            return (len(data) + (pagesize - (len(data) % pagesize)))
+        return (len(data) + pagesize - 1) // pagesize * pagesize
 
     # Pad data and divide into pages
     def page_data(self, data, pagesize):
-        if (len(data) % pagesize) > 0:
-            data += b'\xff' * (pagesize - (len(data) % pagesize))
-        result = list()
-        while len(data):
-            result.append(data[:pagesize])
-            data = data[pagesize:]
-        return result
+        data = bytes(data) + b'\xff' * (self.padlen(data, pagesize) - len(data))
+        return [data[i:i + pagesize] for i in range(0, len(data), pagesize)]
 
     # Write data blob to flash
-    def writebinaryblob(self, addr, blocksize, bootloader, data):
+    def writebinaryblob(self, addr, blocksize, bootloader, data, packsize=4096):
         if addr & (blocksize - 1):
             raise Exception('Blob is not %d byte aligned' % blocksize)
-        self.unlock()
+        if self.family['protect'] is not None:
+            self.unlock()
         stream = b'\x81\x01\x08' \
                + addr.to_bytes(4, byteorder='big') \
                + self.padlen(data, blocksize).to_bytes(4, byteorder='big')
@@ -384,20 +430,32 @@ class Programmer:
         pages = self.page_data(bootloader, 128)
         for page in pages:
             self.dev.write(CH_EP_OUT_RAW, page)
-        self.sendcommand(b'\x81\x02\x01\x07')
+        for i in range(10):
+            reply = self.sendcommand(b'\x81\x02\x01\x07')
+            if bytes(reply[:4]) == b'\x82\x02\x01\x07':
+                break
+        else:
+            raise Exception('Failed to load flash loader')
         self.sendcommand(b'\x81\x02\x01\x04')
         pages = self.page_data(data, blocksize)
-        for page in pages:
-            self.dev.write(CH_EP_OUT_RAW, page)
-        reply = self.dev.read(CH_EP_IN_RAW, CH_PACKET_SIZE, CH_TIMEOUT)
-        if bytes(reply[:4]) != b'\x41\x01\x01\x04':
-            raise Exception('Failed writing/verifying data blob')
+        perpack = packsize // blocksize
+        for offset in range(0, len(pages), perpack):
+            for page in pages[offset:offset + perpack]:
+                self.dev.write(CH_EP_OUT_RAW, page)
+            reply = self.dev.read(CH_EP_IN_RAW, CH_PACKET_SIZE, CH_TIMEOUT)
+            if bytes(reply[:4]) != b'\x41\x01\x01\x04':
+                raise Exception('Failed writing/verifying data at address 0x%08x' % (addr + offset * blocksize))
+        try:
+            self.sendcommand(b'\x81\x02\x01\x08')
+        except:
+            pass
 
     # Write data to code flash
     def flash_data(self, data):
         if (self.flashsize > 0) and (len(data) > self.flashsize):
-            raise Exception('Not enough memory')
-        self.writebinaryblob(self.family['code_base'], self.family['block_size'], self.family['loader'], data)
+            raise Exception('Not enough memory (file: %d bytes, flash: %d bytes)' % (len(data), self.flashsize))
+        self.writebinaryblob(self.family['code_base'], self.family['block_size'], self.family['loader'], data,
+                             self.family.get('pack_size', 4096))
 
 # ===================================================================================
 # Device Constants
@@ -414,6 +472,17 @@ CH_EP_IN        = 0x81      # endpoint for reply transfer in
 CH_EP_OUT_RAW   = 0x02      # endpoint for raw data transfer out
 CH_EP_IN_RAW    = 0x82      # endpoint for raw data transfer in
 CH_TIMEOUT      = 5000      # timeout for USB operations
+
+# WCH-Link variants
+CH_LINKNAMES = {
+    0x01: 'WCH-Link based on CH549',
+    0x02: 'WCH-LinkE based on CH32V305',
+    0x03: 'WCH-LinkS based on CH32V203',
+    0x04: 'WCH-LinkB',
+    0x05: 'WCH-LinkW',
+    0x12: 'WCH-LinkE',
+    0x85: 'WCH-LinkW',
+}
 
 # ===================================================================================
 # Flash Loader
@@ -766,10 +835,221 @@ LOADER_583 = \
     +b"\x69\xbb\x91\x47\x63\x99\xf9\x00\x13\x05\x60\x06\xfd\x36\xf5\x3e" \
     +b"\x13\x05\x90\x09\x0d\xb7\xe3\x8f\x09\xd4\xf1\x54\xa9\xbb"
 
+LOADER_V205 = \
+     b"\x01\x11\x02\xce\x93\x77\x15\x00\x99\xcf\xb7\x06\x67\x45\xb7\x27" \
+    +b"\x02\x40\x93\x86\x36\x12\x37\x97\xef\xcd\xd4\xc3\x13\x07\xb7\x9a" \
+    +b"\xd8\xc3\xd4\xd3\xd8\xd3\x93\x77\x25\x00\x9d\xc7\xb7\x27\x02\x40" \
+    +b"\x98\x4b\xad\x66\x37\x38\x00\x40\x13\x67\x47\x00\x98\xcb\x98\x4b" \
+    +b"\x93\x86\xa6\xaa\x13\x67\x07\x04\x98\xcb\xd8\x47\x05\x8b\x63\x16" \
+    +b"\x07\x10\x98\x4b\x6d\x9b\x98\xcb\x93\x77\x45\x00\xa9\xcb\x93\x07" \
+    +b"\xf6\x0f\xa1\x83\x2e\xc6\x2d\x68\x81\x76\x3e\xca\xb7\x08\x02\x00" \
+    +b"\xb7\x27\x02\x40\x37\x33\x00\x40\x13\x08\xa8\xaa\xfd\x16\x98\x4b" \
+    +b"\x33\x67\x17\x01\x98\xcb\x32\x47\xd8\xcb\x98\x4b\x13\x67\x07\x04" \
+    +b"\x98\xcb\xd8\x47\x05\x8b\x69\xe7\x98\x4b\x75\x8f\x98\xcb\x32\x47" \
+    +b"\x13\x07\x07\x10\x3a\xc6\x52\x47\x7d\x17\x3a\xca\x69\xfb\x93\x77" \
+    +b"\x85\x00\xf1\xcf\x93\x07\xf6\x0f\x2e\xc6\xa1\x83\x3e\xca\x37\x27" \
+    +b"\x02\x40\x1c\x4b\xc1\x66\x2d\x68\xd5\x8f\x1c\xcb\xb7\x16\x00\x20" \
+    +b"\xb7\x27\x02\x40\x37\x03\x08\x00\x13\x0e\x00\x04\xb7\x0e\x04\x00" \
+    +b"\xb7\x38\x00\x40\x13\x08\xa8\xaa\x98\x4b\x33\x67\x67\x00\x98\xcb" \
+    +b"\xd8\x47\x05\x8b\x75\xff\x32\x47\x36\x8f\x3a\xc8\x72\xcc\x42\x47" \
+    +b"\x03\x2f\x0f\x00\x91\x06\x23\x20\xe7\x01\x98\x4b\x33\x67\xd7\x01" \
+    +b"\x98\xcb\xd8\x47\x05\x8b\x21\xeb\x42\x47\x36\x8f\x11\x07\x3a\xc8" \
+    +b"\x62\x47\x7d\x17\x3a\xcc\x61\xff\x32\x47\xd8\xcb\x98\x4b\x13\x67" \
+    +b"\x07\x04\x98\xcb\xd8\x47\x05\x8b\x15\xeb\xd8\x47\x41\x8b\x15\xcb" \
+    +b"\xd8\x47\xb7\x06\xf3\xff\xfd\x16\x13\x67\x07\x01\xd8\xc7\x98\x4b" \
+    +b"\x21\x45\x75\x8f\x98\xcb\x05\x61\x02\x90\x23\x20\xd8\x00\xf5\xb5" \
+    +b"\x23\x20\x03\x01\x3d\xb7\x23\xa0\x08\x01\x65\xb7\x23\xa0\x08\x01" \
+    +b"\xd1\xb7\x32\x47\x13\x07\x07\x10\x3a\xc6\x52\x47\x7d\x17\x3a\xca" \
+    +b"\x25\xf7\x98\x4b\xb7\x06\xf3\xff\xfd\x16\x75\x8f\x98\xcb\x41\x89" \
+    +b"\x19\xe1\x01\x45\xc9\xb7\x2e\xc6\x0d\x06\x02\xca\x09\x82\x32\xcc" \
+    +b"\xb7\x17\x00\x20\x98\x43\x13\x86\x47\x00\xd2\x47\xb2\x46\x8a\x07" \
+    +b"\xb6\x97\x9c\x43\x63\x18\xf7\x02\xd2\x47\x32\x47\x8a\x07\xba\x97" \
+    +b"\x98\x43\xf2\x47\xba\x97\x3e\xce\xd2\x47\x85\x07\x3e\xca\xd2\x46" \
+    +b"\x62\x47\xb2\x87\xe3\xe8\xe6\xfc\xb7\x27\x00\x20\x98\x4b\xf2\x47" \
+    +b"\xe3\x09\xf7\xfa\x41\x45\x85\xbf\xff\xff\xff\xff\xff\xff\xff\xff" \
+    +b"\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff"
+
+LOADER_V317 = \
+     b"\x01\x11\x02\xce\x93\x77\x15\x00\x99\xcf\xb7\x06\x67\x45\xb7\x27" \
+    +b"\x02\x40\x93\x86\x36\x12\x37\x97\xef\xcd\xd4\xc3\x13\x07\xb7\x9a" \
+    +b"\xd8\xc3\xd4\xd3\xd8\xd3\x93\x77\x25\x00\x95\xc7\xb7\x27\x02\x40" \
+    +b"\x98\x4b\xad\x66\x37\x38\x00\x40\x13\x67\x47\x00\x98\xcb\x98\x4b" \
+    +b"\x93\x86\xa6\xaa\x13\x67\x07\x04\x98\xcb\xd8\x47\x05\x8b\x69\xe7" \
+    +b"\x98\x4b\x6d\x9b\x98\xcb\x93\x77\x45\x00\xb1\xc7\x85\x67\xfd\x17" \
+    +b"\xb2\x97\xb1\x83\x2e\xc6\xad\x66\x3e\xca\xb7\x38\x00\x40\xb7\x27" \
+    +b"\x02\x40\x93\x86\xa6\xaa\x05\x68\x98\x4b\x13\x67\x27\x00\x98\xcb" \
+    +b"\x32\x47\xd8\xcb\x98\x4b\x13\x67\x07\x04\x98\xcb\xd8\x47\x05\x8b" \
+    +b"\x59\xe7\x98\x4b\x75\x9b\x98\xcb\x32\x47\x42\x97\x3a\xc6\x52\x47" \
+    +b"\x7d\x17\x3a\xca\x71\xfb\x93\x77\x85\x00\xd5\xcb\x93\x07\xf6\x0f" \
+    +b"\x2e\xc6\xa1\x83\x3e\xca\x37\x27\x02\x40\x1c\x4b\xc1\x66\x41\x68" \
+    +b"\xd5\x8f\x1c\xcb\xb7\x16\x00\x20\xb7\x27\x02\x40\x93\x08\x00\x04" \
+    +b"\x37\x03\x20\x00\x98\x4b\x33\x67\x07\x01\x98\xcb\xd8\x47\x05\x8b" \
+    +b"\x75\xff\x32\x47\x3a\xc8\x46\xcc\x62\x47\x0d\xef\x98\x4b\x33\x67" \
+    +b"\x67\x00\x98\xcb\xd8\x47\x05\x8b\x75\xff\xd8\x47\x41\x8b\x39\xc3" \
+    +b"\xd8\x47\xc1\x76\xfd\x16\x13\x67\x07\x01\xd8\xc7\x98\x4b\x21\x45" \
+    +b"\x75\x8f\x98\xcb\x05\x61\x02\x90\x23\x20\xd8\x00\x3d\xb7\x23\xa0" \
+    +b"\xd8\x00\xad\xb7\x42\x47\x13\x8e\x46\x00\x94\x42\x14\xc3\x42\x47" \
+    +b"\x11\x07\x3a\xc8\x62\x47\x7d\x17\x3a\xcc\xd8\x47\x09\x8b\x75\xff" \
+    +b"\xf2\x86\x5d\xb7\x32\x47\x13\x07\x07\x10\x3a\xc6\x52\x47\x7d\x17" \
+    +b"\x3a\xca\x49\xf3\x98\x4b\xc1\x76\xfd\x16\x75\x8f\x98\xcb\x41\x89" \
+    +b"\x19\xe1\x01\x45\x45\xbf\x2e\xc6\x0d\x06\x02\xca\x09\x82\x32\xcc" \
+    +b"\xb7\x17\x00\x20\x98\x43\x13\x86\x47\x00\xd2\x47\xb2\x46\x8a\x07" \
+    +b"\xb6\x97\x9c\x43\x63\x18\xf7\x02\xd2\x47\x32\x47\x8a\x07\xba\x97" \
+    +b"\x98\x43\xf2\x47\xba\x97\x3e\xce\xd2\x47\x85\x07\x3e\xca\xd2\x46" \
+    +b"\x62\x47\xb2\x87\xe3\xe8\xe6\xfc\xb7\x27\x00\x20\x98\x4b\xf2\x47" \
+    +b"\xe3\x09\xf7\xfa\x41\x45\xb9\xbf"
+
+LOADER_H417 = \
+     b"\x01\x11\x02\xce\x93\x77\x15\x00\x99\xcf\xb7\x06\x67\x45\xb7\x27" \
+    +b"\x02\x40\x93\x86\x36\x12\x37\x97\xef\xcd\xd4\xc3\x13\x07\xb7\x9a" \
+    +b"\xd8\xc3\xd4\xd3\xd8\xd3\x93\x77\x25\x00\xc1\xe3\x93\x77\x45\x00" \
+    +b"\xed\xe7\x93\x77\x85\x00\x63\x8d\x07\x1c\x93\x07\xf6\x0f\x2e\xc6" \
+    +b"\xa1\x83\x3e\xca\x37\x27\x02\x40\x1c\x4b\xc1\x66\x41\x68\xd5\x8f" \
+    +b"\x1c\xcb\xb7\x16\x10\x20\xb7\x27\x02\x40\x93\x08\x00\x04\x37\x03" \
+    +b"\x20\x00\x98\x4b\x33\x67\x07\x01\x98\xcb\xd8\x47\x05\x8b\x75\xff" \
+    +b"\x32\x47\x3a\xc8\x46\xcc\x62\x47\x63\x1e\x07\x14\x98\x4b\x33\x67" \
+    +b"\x67\x00\x98\xcb\xd8\x47\x05\x8b\x75\xff\xd8\x47\x41\x8b\x63\x03" \
+    +b"\x07\x16\xd8\x47\xc1\x76\xfd\x16\x13\x67\x07\x01\xd8\xc7\x98\x4b" \
+    +b"\x21\x45\x75\x8f\x98\xcb\x05\x61\x02\x90\x85\x68\xad\x66\x37\x08" \
+    +b"\xfc\xff\x02\xca\x39\x43\xb7\x27\x02\x40\x13\x8e\x08\x80\xb7\x0e" \
+    +b"\x04\x00\x37\x3f\x00\x40\x93\x86\xa6\xaa\x7d\x18\x52\x47\xe3\x6f" \
+    +b"\xe3\xf4\xd8\x57\x93\x1f\x37\x00\x52\x47\x63\xda\x0f\x02\x72\x97" \
+    +b"\x42\x07\x3a\xc6\x98\x4b\x33\x67\xd7\x01\x98\xcb\x32\x47\xd8\xcb" \
+    +b"\x98\x4b\x13\x67\x07\x04\x98\xcb\xd8\x47\x05\x8b\x01\xef\x98\x4b" \
+    +b"\x33\x77\x07\x01\x98\xcb\x52\x47\x05\x07\x3a\xca\xc1\xb7\x46\x97" \
+    +b"\x3e\x07\xc1\xbf\x23\x20\xdf\x00\xc5\xb7\xb7\x27\x02\x40\xdc\x57" \
+    +b"\x13\x97\x37\x00\x63\x5f\x07\x04\x93\x97\x35\x01\xe3\xc3\x07\xf0" \
+    +b"\x85\x67\xfd\x17\xb2\x97\xb1\x83\x2e\xc6\xad\x66\x3e\xca\xb7\x38" \
+    +b"\x00\x40\xb7\x27\x02\x40\x93\x86\xa6\xaa\x05\x68\x98\x4b\x13\x67" \
+    +b"\x27\x00\x98\xcb\x32\x47\xd8\xcb\x98\x4b\x13\x67\x07\x04\x98\xcb" \
+    +b"\xd8\x47\x05\x8b\x01\xef\x98\x4b\x75\x9b\x98\xcb\x32\x47\x42\x97" \
+    +b"\x3a\xc6\x52\x47\x7d\x17\x3a\xca\x71\xfb\x65\xbd\x23\xa0\xd8\x00" \
+    +b"\xc5\xb7\x85\x67\xfd\x17\xb2\x97\xb1\x83\x2e\xc6\xad\x66\x3e\xca" \
+    +b"\xb7\x38\x00\x40\xb7\x27\x02\x40\x93\x86\xa6\xaa\x05\x68\x98\x4b" \
+    +b"\x13\x67\x27\x00\x98\xcb\x32\x47\xd8\xcb\x98\x4b\x13\x67\x07\x04" \
+    +b"\x98\xcb\xd8\x47\x05\x8b\x01\xef\x98\x4b\x75\x9b\x98\xcb\x32\x47" \
+    +b"\x42\x97\x3a\xc6\x52\x47\x7d\x17\x3a\xca\x71\xfb\x9d\xb5\x23\xa0" \
+    +b"\xd8\x00\xc5\xb7\x42\x47\x13\x8e\x46\x00\x94\x42\x14\xc3\x42\x47" \
+    +b"\x11\x07\x3a\xc8\x62\x47\x7d\x17\x3a\xcc\xd8\x47\x09\x8b\x75\xff" \
+    +b"\xf2\x86\x51\xb5\x32\x47\x13\x07\x07\x10\x3a\xc6\x52\x47\x7d\x17" \
+    +b"\x3a\xca\xe3\x10\x07\xe6\x98\x4b\xc1\x76\xfd\x16\x75\x8f\x98\xcb" \
+    +b"\x41\x89\x19\xe1\x01\x45\x41\xbd\x2e\xc6\x0d\x06\x02\xca\x09\x82" \
+    +b"\x32\xcc\xb7\x17\x10\x20\x98\x43\x13\x86\x47\x00\xd2\x47\xb2\x46" \
+    +b"\x8a\x07\xb6\x97\x9c\x43\x63\x18\xf7\x02\xd2\x47\x32\x47\x8a\x07" \
+    +b"\xba\x97\x98\x43\xf2\x47\xba\x97\x3e\xce\xd2\x47\x85\x07\x3e\xca" \
+    +b"\xd2\x46\x62\x47\xb2\x87\xe3\xe8\xe6\xfc\xb7\x27\x10\x20\x98\x4b" \
+    +b"\xf2\x47\xe3\x09\xf7\xfa\x41\x45\x3d\xbd"
+
+LOADER_M030 = \
+     b"\x01\x11\x02\xce\x93\x77\x15\x00\x99\xcf\xb7\x06\x67\x45\xb7\x27" \
+    +b"\x02\x40\x93\x86\x36\x12\x37\x97\xef\xcd\xd4\xc3\x13\x07\xb7\x9a" \
+    +b"\xd8\xc3\xd4\xd3\xd8\xd3\x93\x77\x25\x00\x8d\xc3\xb7\x27\x02\x40" \
+    +b"\x98\x4b\x13\x67\x47\x00\x98\xcb\x98\x4b\x13\x67\x07\x04\x98\xcb" \
+    +b"\xd8\x47\x05\x8b\x75\xff\x98\x4b\x6d\x9b\x98\xcb\x93\x77\x45\x00" \
+    +b"\xa1\xc7\x93\x07\xf6\x07\x9d\x83\x2e\xc6\x81\x76\x3e\xca\x37\x08" \
+    +b"\x02\x00\xb7\x27\x02\x40\xfd\x16\x98\x4b\x33\x67\x07\x01\x98\xcb" \
+    +b"\x32\x47\xd8\xcb\x98\x4b\x13\x67\x07\x04\x98\xcb\xd8\x47\x05\x8b" \
+    +b"\x75\xff\x98\x4b\x75\x8f\x98\xcb\x32\x47\x13\x07\x07\x08\x3a\xc6" \
+    +b"\x52\x47\x7d\x17\x3a\xca\x69\xfb\x93\x77\x85\x00\xe9\xc3\x93\x07" \
+    +b"\xf6\x07\x2e\xc6\x9d\x83\x37\x27\x02\x40\x3e\xca\x1c\x4b\xc1\x66" \
+    +b"\x37\x08\x08\x00\xd5\x8f\x1c\xcb\xc1\x48\x37\x17\x00\x20\xb7\x27" \
+    +b"\x02\x40\x37\x03\x04\x00\x94\x4b\xb3\xe6\x06\x01\x94\xcb\xd4\x47" \
+    +b"\x85\x8a\xf5\xfe\xb2\x46\x3a\x8e\x36\xc8\x46\xcc\xc2\x46\x83\x2e" \
+    +b"\x07\x00\x21\x07\x23\xa0\xd6\x01\xc2\x46\x03\x2e\x4e\x00\x23\xa2" \
+    +b"\xc6\x01\x94\x4b\xb3\xe6\x66\x00\x94\xcb\xd4\x47\x85\x8a\xf5\xfe" \
+    +b"\xc2\x46\x3a\x8e\xa1\x06\x36\xc8\xe2\x46\xfd\x16\x36\xcc\xf9\xf6" \
+    +b"\xb2\x46\xd4\xcb\x94\x4b\x93\xe6\x06\x04\x94\xcb\xd4\x47\x85\x8a" \
+    +b"\xf5\xfe\xd4\x47\xc1\x8a\x91\xce\xd8\x47\xb7\x06\xf3\xff\xfd\x16" \
+    +b"\x13\x67\x07\x01\xd8\xc7\x98\x4b\x21\x45\x75\x8f\x98\xcb\x05\x61" \
+    +b"\x02\x90\xb2\x46\x93\x86\x06\x08\x36\xc6\xd2\x46\xfd\x16\x36\xca" \
+    +b"\xbd\xfa\x98\x4b\xb7\x06\xf3\xff\xfd\x16\x75\x8f\x98\xcb\x41\x89" \
+    +b"\x19\xe1\x01\x45\xe9\xbf\x2e\xc6\x0d\x06\x02\xca\x09\x82\x32\xcc" \
+    +b"\xb7\x17\x00\x20\x98\x43\x13\x86\x47\x00\xd2\x47\xb2\x46\x8a\x07" \
+    +b"\xb6\x97\x9c\x43\x63\x18\xf7\x02\xd2\x47\x32\x47\x8a\x07\xba\x97" \
+    +b"\x98\x43\xf2\x47\xba\x97\x3e\xce\xd2\x47\x85\x07\x3e\xca\xd2\x46" \
+    +b"\x62\x47\xb2\x87\xe3\xe8\xe6\xfc\xb7\x27\x00\x20\x98\x4b\xf2\x47" \
+    +b"\xe3\x09\xf7\xfa\x41\x45\x61\xb7"
+
+LOADER_569 = \
+     b"\x79\x71\x22\xd4\x4a\xd0\x56\xca\x06\xd6\x26\xd2\x4e\xce\x52\xcc" \
+    +b"\x5a\xc8\x5e\xc6\x62\xc4\x93\x77\x15\x00\x2a\x84\xae\x8a\x32\x89" \
+    +b"\xbd\xe7\x93\x77\x24\x00\x99\xc7\xb7\x85\x07\x00\x01\x45\xa9\x2c" \
+    +b"\x89\x47\x35\xe1\x93\x77\x44\x00\x91\xc7\x85\x65\x56\x85\xa9\x24" \
+    +b"\x91\x47\x31\xe9\x93\x77\x84\x01\x01\x4a\xd9\xc7\xb7\x14\x00\x20" \
+    +b"\x13\x09\xf9\x0f\x93\x84\x04\x10\x13\x59\x89\x00\x01\x4a\xb3\x8a" \
+    +b"\x9a\x40\x93\x7b\x84\x00\x13\x7c\x04\x01\x33\x8b\x9a\x00\x63\x91" \
+    +b"\x0b\x04\x63\x0e\x0c\x04\x93\x89\x04\xf0\x13\x06\x00\x10\xce\x85" \
+    +b"\x5a\x85\x2d\x26\x13\x75\xf5\x0f\x0d\xcd\xc1\x47\x29\xa0\x01\x45" \
+    +b"\x69\x2e\x85\x47\x59\xd5\xb2\x50\x22\x54\x92\x54\x02\x59\xf2\x49" \
+    +b"\x62\x4a\xd2\x4a\x42\x4b\xb2\x4b\x22\x4c\x3e\x85\x45\x61\x02\x90" \
+    +b"\x13\x06\x00\x10\x93\x85\x04\xf0\x5a\x85\xcd\x22\x5d\xd9\xa1\x47" \
+    +b"\xd9\xbf\x83\xa7\x09\x00\x91\x09\x3e\x9a\xe3\x9c\x34\xff\x7d\x19" \
+    +b"\x93\x84\x04\x10\xe3\x1b\x09\xf8\x41\x88\x81\x47\x4d\xdc\x37\x67" \
+    +b"\x00\x20\x18\x4b\xe3\x09\x47\xfb\x4d\xb7\xb7\x17\x00\x40\x23\x8d" \
+    +b"\x07\x00\x1d\x47\x23\x8d\xe7\x00\x23\x8c\xa7\x00\x82\x80\x37\x17" \
+    +b"\x00\x40\x83\x47\xa7\x01\xe2\x07\xe1\x87\xe3\xcc\x07\xfe\x23\x0d" \
+    +b"\x07\x00\x82\x80\x37\x17\x00\x40\x83\x47\xa7\x01\xe2\x07\xe1\x87" \
+    +b"\xe3\xcc\x07\xfe\x23\x0c\xa7\x00\x82\x80\x37\x17\x00\x40\x83\x47" \
+    +b"\xa7\x01\xe2\x07\xe1\x87\xe3\xcc\x07\xfe\x03\x45\x87\x01\x82\x80" \
+    +b"\x41\x11\x22\xc4\x2a\x84\x41\x81\x13\x75\xf5\x0f\x06\xc6\xd9\x37" \
+    +b"\x13\x55\x84\x00\x13\x75\xf5\x0f\x75\x3f\x13\x75\xf4\x0f\x22\x44" \
+    +b"\xb2\x40\x41\x01\x45\xbf\x41\x11\x22\xc4\x2a\x84\x19\x45\x06\xc6" \
+    +b"\xad\x3f\x71\x37\x22\x85\x22\x44\xb2\x40\x41\x01\xbd\xb7\x01\x11" \
+    +b"\x22\xcc\x06\xce\x37\x04\x28\x00\x9d\x3f\x15\x45\xb9\x3f\x71\x3f" \
+    +b"\x69\x3f\x2a\xc6\xad\x37\x32\x45\x05\x89\x09\xc9\x7d\x14\x75\xf4" \
+    +b"\x13\x05\xf0\x0f\xf2\x40\x62\x44\x05\x61\x82\x80\x01\x45\xdd\xbf" \
+    +b"\x85\x67\xfd\x17\x01\x11\xbe\x95\xe9\x8f\x26\xca\xae\x97\xfd\x74" \
+    +b"\x22\xcc\x06\xce\x33\xf4\x97\x00\x4a\xc8\x4e\xc6\xe9\x8c\xb7\x06" \
+    +b"\x08\x00\x63\xf8\xd4\x0a\xb3\x07\x94\x00\x2a\x87\x13\x05\xa0\x0f" \
+    +b"\x63\xe3\xf6\x06\xb7\x17\x00\x40\x93\x06\x70\x05\x23\x80\xd7\x00" \
+    +b"\x93\x06\x80\xfa\x23\x80\xd7\x00\x83\xc6\x47\x00\x3d\x65\x69\x8f" \
+    +b"\x93\xe6\xc6\x08\x23\x82\xd7\x00\x11\xe7\xb7\x09\x07\x00\x41\x69" \
+    +b"\x63\xe2\x34\x05\xa2\x94\x05\x69\xb3\x89\x84\x40\x63\x79\x24\x05" \
+    +b"\x01\x45\x37\x17\x00\x40\x93\x07\x70\x05\x23\x00\xf7\x00\x93\x07" \
+    +b"\x80\xfa\x23\x00\xf7\x00\x83\x47\x47\x00\x93\xf7\x37\x07\x93\xe7" \
+    +b"\x07\x08\x23\x02\xf7\x00\xf2\x40\x62\x44\xd2\x44\x42\x49\xb2\x49" \
+    +b"\x05\x61\x82\x80\xe3\x60\x24\xfd\x13\x05\x80\x0d\x29\x37\x26\x85" \
+    +b"\xc5\x35\x31\x3f\x5d\xfd\xca\x94\x33\x04\x24\x41\x55\xb7\x13\x05" \
+    +b"\x00\x02\xd5\x3d\x4e\x85\xe9\x35\x19\x37\x45\xf5\x33\x04\x24\x41" \
+    +b"\x61\xbf\x13\x05\xe0\x0f\xc1\xb7\xb7\x17\x00\x40\x83\xc7\x47\x00" \
+    +b"\xc1\x8b\x91\xe3\x31\xbf\x13\x05\xb0\x0f\x82\x80\x01\x11\x22\xcc" \
+    +b"\x37\x04\x00\x10\x71\x14\x69\x8c\x21\x65\x2a\x94\x06\xce\x26\xca" \
+    +b"\x4a\xc8\x4e\xc6\x37\x07\x08\x00\x13\x05\xe0\x0f\x63\x71\xe4\x0e" \
+    +b"\xb3\x07\xc4\x00\x13\x05\xa0\x0f\x63\x6b\xf7\x0c\xb7\x17\x00\x40" \
+    +b"\x03\xc7\x47\x00\x13\x05\xb0\x0f\x41\x8b\x71\xe3\x13\x07\x70\x05" \
+    +b"\x23\x80\xe7\x00\x13\x07\x80\xfa\x23\x80\xe7\x00\x03\xc7\x47\x00" \
+    +b"\x2e\x89\x93\x59\x26\x00\x13\x67\xc7\x08\x23\x82\xe7\x00\xb7\x14" \
+    +b"\x00\x40\x63\x94\x09\x00\x01\x45\x8d\xa8\x09\x45\xa9\x3d\x22\x85" \
+    +b"\x05\x3d\x33\x05\x24\x41\x11\x09\x83\x27\xc9\xff\xdc\xc8\x83\xc7" \
+    +b"\xa4\x01\x93\xe7\x07\x01\x03\xc7\xa4\x01\x62\x07\x61\x87\xe3\x4c" \
+    +b"\x07\xfe\x23\x8d\xf4\x00\x03\xc7\xa4\x01\x62\x07\x61\x87\xe3\x4c" \
+    +b"\x07\xfe\x23\x8d\xf4\x00\x03\xc7\xa4\x01\x62\x07\x61\x87\xe3\x4c" \
+    +b"\x07\xfe\x23\x8d\xf4\x00\x03\xc7\xa4\x01\x62\x07\x61\x87\xe3\x4c" \
+    +b"\x07\xfe\x23\x8d\xf4\x00\xfd\x19\x33\x04\xa9\x00\x63\x85\x09\x00" \
+    +b"\x93\x77\xf4\x0f\xcd\xf3\x21\x35\x49\xd5\x37\x17\x00\x40\x93\x07" \
+    +b"\x70\x05\x23\x00\xf7\x00\x93\x07\x80\xfa\x23\x00\xf7\x00\x83\x47" \
+    +b"\x47\x00\x93\xf7\x37\x07\x93\xe7\x07\x08\x23\x02\xf7\x00\xf2\x40" \
+    +b"\x62\x44\xd2\x44\x42\x49\xb2\x49\x05\x61\x82\x80\x01\x11\x4a\xc8" \
+    +b"\x21\x69\x26\xca\x06\xce\x22\xcc\x4e\xc6\x52\xc4\x2a\x99\xb7\x07" \
+    +b"\x08\x00\x93\x04\xe0\x0f\x63\x7c\xf9\x02\xb7\x17\x00\x40\x83\xc7" \
+    +b"\x47\x00\x93\x04\xb0\x0f\xc1\x8b\x9d\xe3\x2d\x45\x2e\x84\x93\x54" \
+    +b"\x26\x00\x21\x33\x4a\x85\xa9\x3b\x89\x33\x81\x33\xfd\x59\x37\x1a" \
+    +b"\x00\x40\x13\x89\xf4\xff\x63\x1d\x39\x01\x81\x44\x09\x33\xf2\x40" \
+    +b"\x62\x44\x26\x85\x42\x49\xd2\x44\xb2\x49\x22\x4a\x05\x61\x82\x80" \
+    +b"\x29\x3b\x21\x3b\x19\x3b\x11\x3b\x11\x04\x03\x27\x4a\x01\x83\x27" \
+    +b"\xc4\xff\xe3\x1d\xf7\xfc\xca\x84\xe9\xb7\x01\x11\x22\xcc\x06\xce" \
+    +b"\x37\x04\x28\x00\xe9\x31\x15\x45\x4d\x39\xc5\x39\xfd\x31\x2a\xc6" \
+    +b"\x7d\x39\x32\x45\x93\x77\x15\x00\x8d\xcb\x7d\x14\x6d\xf4\x13\x05" \
+    +b"\xf0\x0f\xf2\x40\x62\x44\x05\x61\x82\x80\x13\x07\x40\x04\x01\x45" \
+    +b"\xe3\x89\xe7\xfe\x05\x45\x01\x33\x13\x05\x40\x04\x65\x31\x09\x45" \
+    +b"\x55\x31\x62\x44\xf2\x40\x05\x61\x19\xb3\x93\x77\xc5\x07\xf1\xff" \
+    +b"\x01\x45\xc1\xbf"
+
 # ===================================================================================
 # Device definitions
 # ===================================================================================
 
+# Chip IDs (upper 16 bits of the 32-bit chip ID) from WCH EVT DBGMCU sources and wlink
 DEVICES = [
     {'name': 'CH32V002F4P6', 'id': 0x0020},
     {'name': 'CH32V002F4U6', 'id': 0x0021},
@@ -794,14 +1074,18 @@ DEVICES = [
     {'name': 'CH32V006E8R6', 'id': 0x0061},
     {'name': 'CH32V006F8U6', 'id': 0x0062},
     {'name': 'CH32V006F8P6', 'id': 0x0063},
+    {'name': 'CH32V006F4U6', 'id': 0x0064, 'code_size': 16384},
+    {'name': 'CH32V006D8U6', 'id': 0x0067},
 
-    {'name': 'CH32V007G8R6', 'id': 0x0070},
+    {'name': 'CH32M007G8R6', 'id': 0x0070},
     {'name': 'CH32V007E8R6', 'id': 0x0071},
-    {'name': 'CH32V007F8U6', 'id': 0x0072},
+    {'name': 'CH32V007K8U6', 'id': 0x0072},
+    {'name': 'CH32M007E8R6', 'id': 0x0073},
+    {'name': 'CH32M007E8U6', 'id': 0x0074},
 
     {'name': 'CH32V103',     'id': 0x2500},
 
-    {'name': 'CH32V205',     'id': 0x2050},
+    {'name': 'CH32V205RCT6', 'id': 0x2051},
 
     {'name': 'CH32V203C8U6', 'id': 0x2030},
     {'name': 'CH32V203C8T6', 'id': 0x2031},
@@ -811,8 +1095,10 @@ DEVICES = [
     {'name': 'CH32V203K6T6', 'id': 0x2035},
     {'name': 'CH32V203G6U6', 'id': 0x2036},
     {'name': 'CH32V203F6P6', 'id': 0x2037},
+    {'name': 'CH32V203F6P6', 'id': 0x2039},
     {'name': 'CH32V203F8P6', 'id': 0x203a},
     {'name': 'CH32V203G8R6', 'id': 0x203b},
+    {'name': 'CH32V203F8U6', 'id': 0x203d},
     {'name': 'CH32V203F8U6', 'id': 0x203e},
     {'name': 'CH32V208WBU6', 'id': 0x2080},
     {'name': 'CH32V208RBT6', 'id': 0x2081},
@@ -826,10 +1112,28 @@ DEVICES = [
     {'name': 'CH32V305RBT6', 'id': 0x3050},
     {'name': 'CH32V305FBP6', 'id': 0x3052},
     {'name': 'CH32V305GBU6', 'id': 0x305b},
+    {'name': 'CH32V305CCT6', 'id': 0x305c},
     {'name': 'CH32V307VCT6', 'id': 0x3070},
     {'name': 'CH32V307RCT6', 'id': 0x3071},
+    {'name': 'CH32V307FBP6', 'id': 0x3072},
     {'name': 'CH32V307WCU6', 'id': 0x3073},
-    {'name': 'CH32V317',     'id': 0x3170},
+    {'name': 'CH32V317VCT6', 'id': 0x3170},
+    {'name': 'CH32V317WCU6', 'id': 0x3173},
+    {'name': 'CH32V317TCU6', 'id': 0x3175},
+
+    {'name': 'CH32V407VET6', 'id': 0x4670},
+    {'name': 'CH32V407WEU6', 'id': 0x4671},
+    {'name': 'CH32V407RET6', 'id': 0x4672},
+    {'name': 'CH32V467VET6', 'id': 0x4673},
+    {'name': 'CH32V467WEU6', 'id': 0x4674},
+    {'name': 'CH32V467RET6', 'id': 0x4675},
+    {'name': 'CH32V406RET6', 'id': 0x4677},
+
+    {'name': 'CH32H415REU6', 'id': 0x4150},
+    {'name': 'CH32H416RDU6', 'id': 0x4160},
+    {'name': 'CH32H417QEU6', 'id': 0x4170},
+    {'name': 'CH32H417MEU6', 'id': 0x4171},
+    {'name': 'CH32H417WEU6', 'id': 0x4172},
 
     {'name': 'CH32X033F8P6', 'id': 0x035a},
     {'name': 'CH32X035R8T6', 'id': 0x0350},
@@ -839,49 +1143,102 @@ DEVICES = [
     {'name': 'CH32X035G8R6', 'id': 0x035b},
     {'name': 'CH32X035F8U6', 'id': 0x035e},
 
+    {'name': 'CH32X315MCU6', 'id': 0x3150},
+    {'name': 'CH32X315CCU6', 'id': 0x3151},
+    {'name': 'CH32X315WCU6', 'id': 0x3152},
+    {'name': 'CH32X305RCT6', 'id': 0x3153},
+
     {'name': 'CH32L103C8U6', 'id': 0x1030},
     {'name': 'CH32L103C8T6', 'id': 0x1031},
     {'name': 'CH32L103K8U6', 'id': 0x1032},
+    {'name': 'CH32M103G8R6', 'id': 0x1033},
     {'name': 'CH32L103F7P6', 'id': 0x1037},
     {'name': 'CH32L103F8P6', 'id': 0x103a},
     {'name': 'CH32L103G8R6', 'id': 0x103b},
     {'name': 'CH32L103F8U6', 'id': 0x103d},
 
+    {'name': 'CH32M030C8U7', 'id': 0x03b0},
+    {'name': 'CH32M030C8T6', 'id': 0x03b1},
+    {'name': 'CH32M030K8U6', 'id': 0x03b2},
+    {'name': 'CH32M030C8U3', 'id': 0x03b3},
+    {'name': 'CH32M030G8R6', 'id': 0x03bb},
+
+    {'name': 'CH641F',       'id': 0x6410},
+    {'name': 'CH641D',       'id': 0x6411},
+    {'name': 'CH641X',       'id': 0x6412},
+    {'name': 'CH641U',       'id': 0x6415},
+    {'name': 'CH641P',       'id': 0x6416},
+
+    {'name': 'CH643W',       'id': 0x6430},
+    {'name': 'CH643Q',       'id': 0x6431},
+    {'name': 'CH643L',       'id': 0x6433},
+    {'name': 'CH643U',       'id': 0x6434},
+
+    {'name': 'CH645',        'id': 0x6450},
+
+    {'name': 'CH565', 'id': 0x6500, 'code_size': 458752},
+    {'name': 'CH569', 'id': 0x6900, 'code_size': 458752},
     {'name': 'CH571', 'id': 0x7100, 'code_size': 196608},
     {'name': 'CH573', 'id': 0x7300, 'code_size': 458752},
     {'name': 'CH581', 'id': 0x8100, 'code_size': 196608},
     {'name': 'CH582', 'id': 0x8200, 'code_size': 458752},
     {'name': 'CH583', 'id': 0x8300, 'code_size': 458752},
+    {'name': 'CH584', 'id': 0x8400, 'code_size': 458752},
+    {'name': 'CH585', 'id': 0x9300, 'code_size': 458752},
     {'name': 'CH591', 'id': 0x9100, 'code_size': 196608},
     {'name': 'CH592', 'id': 0x9200, 'code_size': 458752}
 ]
 
-FAMILIES = [
-    # CH32V00x: 256-byte flash pages (fast programming/erasing), see CH32V00X reference manual
-    {'id': 0x002, 'name': 'CH32V002', 'block_size': 256, 'loader': LOADER_V002, 'code_base' : 0x08000000, 'optbytes': b'\xf7\xff\xff\xff\xff\xff\xff', 'code_size':  16384},
-    {'id': 0x003, 'name': 'CH32V003', 'block_size':  64, 'loader': LOADER_V003, 'code_base' : 0x08000000, 'optbytes': b'\xf7\xff\xff\xff\xff\xff\xff', 'code_size':  16384},
-    {'id': 0x004, 'name': 'CH32V004', 'block_size': 256, 'loader': LOADER_V002, 'code_base' : 0x08000000, 'optbytes': b'\xf7\xff\xff\xff\xff\xff\xff', 'code_size':  32768},
-    {'id': 0x005, 'name': 'CH32V005', 'block_size': 256, 'loader': LOADER_V002, 'code_base' : 0x08000000, 'optbytes': b'\xf7\xff\xff\xff\xff\xff\xff', 'code_size':  32768},
-    {'id': 0x006, 'name': 'CH32V006', 'block_size': 256, 'loader': LOADER_V002, 'code_base' : 0x08000000, 'optbytes': b'\xf7\xff\xff\xff\xff\xff\xff', 'code_size':  63488},
-    {'id': 0x007, 'name': 'CH32V007', 'block_size': 256, 'loader': LOADER_V002, 'code_base' : 0x08000000, 'optbytes': b'\xf7\xff\xff\xff\xff\xff\xff', 'code_size':  63488},
-    {'id': 0x250, 'name': 'CH32V103', 'block_size': 128, 'loader': LOADER_V103, 'code_base' : 0x08000000, 'optbytes': b'\xff\xff\xff\xff\xff\xff\xff', 'code_size':  65536},
-    {'id': 0x203, 'name': 'CH32V203', 'block_size': 256, 'loader': LOADER_V203, 'code_base' : 0x08000000, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff', 'code_size': 229376},
-    {'id': 0x205, 'name': 'CH32V205', 'block_size': 256, 'loader': LOADER_V203, 'code_base' : 0x08000000, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff', 'code_size': 262144},
-    {'id': 0x208, 'name': 'CH32V208', 'block_size': 256, 'loader': LOADER_V203, 'code_base' : 0x08000000, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff', 'code_size': 491520},
-    {'id': 0x303, 'name': 'CH32V303', 'block_size': 256, 'loader': LOADER_V203, 'code_base' : 0x08000000, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff', 'code_size': 491520},
-    {'id': 0x305, 'name': 'CH32V305', 'block_size': 256, 'loader': LOADER_V203, 'code_base' : 0x08000000, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff', 'code_size': 491520},
-    {'id': 0x307, 'name': 'CH32V307', 'block_size': 256, 'loader': LOADER_V203, 'code_base' : 0x08000000, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff', 'code_size': 491520},
-    {'id': 0x317, 'name': 'CH32V317', 'block_size': 256, 'loader': LOADER_V203, 'code_base' : 0x08000000, 'optbytes': b'\x3f\xff\xff\xff\xff\xff\xff', 'code_size': 491520},
-    {'id': 0x035, 'name': 'CH32X035', 'block_size': 256, 'loader': LOADER_X035, 'code_base' : 0x08000000, 'optbytes': b'\xff\xff\xff\xff\xff\xff\xff', 'code_size':  63488},
-    {'id': 0x103, 'name': 'CH32L103', 'block_size': 256, 'loader': LOADER_L103, 'code_base' : 0x08000000, 'optbytes': b'\xff\xff\xff\xff\xff\xff\xff', 'code_size':  65536},
+# id:         chip family (chip ID >> 4)
+# block_size: data packet size of the flash loader
+# pack_size:  bytes per acknowledged transfer (default 4096)
+# protect:    option bytes for read protection commands (b'' = short command, None = not supported)
+# esig:       flash size can be read from the electronic signature
+# nrst:       nRST pin (PD7) can be configured as GPIO
+# minlink:    minimum WCH-Link firmware version code
+# code_size:  fallback flash size
+OPT_V00X = b'\xf7\xff\xff\xff\xff\xff\xff'
+OPT_V20X = b'\x3f\xff\xff\xff\xff\xff\xff'
+OPT_FF   = b'\xff\xff\xff\xff\xff\xff\xff'
 
-    {'id': 0x710, 'name': 'CH571', 'block_size': 256, 'loader': LOADER_573,  'code_base' : 0x00000000, 'optbytes': None},
-    {'id': 0x730, 'name': 'CH573', 'block_size': 256, 'loader': LOADER_573,  'code_base' : 0x00000000, 'optbytes': None},
-    {'id': 0x810, 'name': 'CH581', 'block_size': 256, 'loader': LOADER_583,  'code_base' : 0x00000000, 'optbytes': None},
-    {'id': 0x820, 'name': 'CH582', 'block_size': 256, 'loader': LOADER_583,  'code_base' : 0x00000000, 'optbytes': None},
-    {'id': 0x830, 'name': 'CH583', 'block_size': 256, 'loader': LOADER_583,  'code_base' : 0x00000000, 'optbytes': None},
-    {'id': 0x910, 'name': 'CH591', 'block_size': 256, 'loader': LOADER_583,  'code_base' : 0x00000000, 'optbytes': None},
-    {'id': 0x920, 'name': 'CH592', 'block_size': 256, 'loader': LOADER_583,  'code_base' : 0x00000000, 'optbytes': None}
+FAMILIES = [
+    {'id': 0x002, 'name': 'CH32V002', 'block_size': 256, 'pack_size': 1024, 'loader': LOADER_V002, 'code_base': 0x08000000, 'protect': OPT_V00X, 'esig': True,  'nrst': True, 'code_size':  16384},
+    {'id': 0x003, 'name': 'CH32V003', 'block_size':  64, 'pack_size': 1024, 'loader': LOADER_V003, 'code_base': 0x08000000, 'protect': OPT_V00X, 'esig': True,  'nrst': True, 'code_size':  16384},
+    {'id': 0x004, 'name': 'CH32V004', 'block_size': 256, 'pack_size': 1024, 'loader': LOADER_V002, 'code_base': 0x08000000, 'protect': OPT_V00X, 'esig': True,  'nrst': True, 'code_size':  32768},
+    {'id': 0x005, 'name': 'CH32V005', 'block_size': 256, 'pack_size': 1024, 'loader': LOADER_V002, 'code_base': 0x08000000, 'protect': OPT_V00X, 'esig': True,  'nrst': True, 'code_size':  32768},
+    {'id': 0x006, 'name': 'CH32V006', 'block_size': 256, 'pack_size': 1024, 'loader': LOADER_V002, 'code_base': 0x08000000, 'protect': OPT_V00X, 'esig': True,  'nrst': True, 'code_size':  63488},
+    {'id': 0x007, 'name': 'CH32V007', 'block_size': 256, 'pack_size': 1024, 'loader': LOADER_V002, 'code_base': 0x08000000, 'protect': OPT_V00X, 'esig': True,  'nrst': True, 'code_size':  63488},
+    {'id': 0x641, 'name': 'CH641',    'block_size':  64, 'pack_size': 1024, 'loader': LOADER_V003, 'code_base': 0x08000000, 'protect': b'',      'esig': True,  'code_size':  16384},
+    {'id': 0x250, 'name': 'CH32V103', 'block_size': 128, 'loader': LOADER_V103, 'code_base': 0x08000000, 'protect': OPT_FF,   'esig': True,  'code_size':  65536},
+    {'id': 0x203, 'name': 'CH32V203', 'block_size': 256, 'loader': LOADER_V203, 'code_base': 0x08000000, 'protect': OPT_V20X, 'esig': True,  'code_size': 229376},
+    {'id': 0x205, 'name': 'CH32V205', 'block_size': 256, 'loader': LOADER_V205, 'code_base': 0x08000000, 'protect': b'',      'esig': True,  'code_size': 262144, 'minlink': 222},
+    {'id': 0x208, 'name': 'CH32V208', 'block_size': 256, 'loader': LOADER_V203, 'code_base': 0x08000000, 'protect': OPT_V20X, 'esig': True,  'code_size': 491520},
+    {'id': 0x303, 'name': 'CH32V303', 'block_size': 256, 'loader': LOADER_V203, 'code_base': 0x08000000, 'protect': OPT_V20X, 'esig': True,  'code_size': 491520},
+    {'id': 0x305, 'name': 'CH32V305', 'block_size': 256, 'loader': LOADER_V203, 'code_base': 0x08000000, 'protect': OPT_V20X, 'esig': True,  'code_size': 491520},
+    {'id': 0x307, 'name': 'CH32V307', 'block_size': 256, 'loader': LOADER_V203, 'code_base': 0x08000000, 'protect': OPT_V20X, 'esig': True,  'code_size': 491520},
+    {'id': 0x317, 'name': 'CH32V317', 'block_size': 256, 'loader': LOADER_V317, 'code_base': 0x08000000, 'protect': b'',      'esig': True,  'code_size': 491520},
+    {'id': 0x467, 'name': 'CH32V4x7', 'block_size': 256, 'loader': LOADER_V317, 'code_base': 0x08000000, 'protect': b'',      'esig': True,  'code_size': 0},
+    {'id': 0x415, 'name': 'CH32H415', 'block_size': 256, 'loader': LOADER_H417, 'code_base': 0x08000000, 'protect': b'',      'esig': True,  'code_size': 983040},
+    {'id': 0x416, 'name': 'CH32H416', 'block_size': 256, 'loader': LOADER_H417, 'code_base': 0x08000000, 'protect': b'',      'esig': True,  'code_size': 491520},
+    {'id': 0x417, 'name': 'CH32H417', 'block_size': 256, 'loader': LOADER_H417, 'code_base': 0x08000000, 'protect': b'',      'esig': True,  'code_size': 983040},
+    {'id': 0x035, 'name': 'CH32X035', 'block_size': 256, 'loader': LOADER_X035, 'code_base': 0x08000000, 'protect': OPT_FF,   'esig': True,  'code_size':  63488},
+    {'id': 0x315, 'name': 'CH32X3x5', 'block_size': 256, 'loader': LOADER_V317, 'code_base': 0x08000000, 'protect': b'',      'esig': True,  'code_size': 491520},
+    {'id': 0x103, 'name': 'CH32L103', 'block_size': 256, 'loader': LOADER_L103, 'code_base': 0x08000000, 'protect': OPT_FF,   'esig': True,  'code_size':  65536},
+    {'id': 0x03b, 'name': 'CH32M030', 'block_size': 128, 'loader': LOADER_M030, 'code_base': 0x08000000, 'protect': b'',      'esig': True,  'code_size':  65536},
+    {'id': 0x643, 'name': 'CH643',    'block_size': 256, 'loader': LOADER_X035, 'code_base': 0x08000000, 'protect': None,     'esig': True,  'code_size':  63488},
+    {'id': 0x645, 'name': 'CH645',    'block_size': 256, 'loader': LOADER_V317, 'code_base': 0x08000000, 'protect': b'',      'esig': True,  'code_size': 229376},
+
+    {'id': 0x650, 'name': 'CH565', 'block_size': 256, 'loader': LOADER_569,  'code_base': 0x00000000, 'protect': None, 'esig': False, 'code_size': 458752},
+    {'id': 0x690, 'name': 'CH569', 'block_size': 256, 'loader': LOADER_569,  'code_base': 0x00000000, 'protect': None, 'esig': False, 'code_size': 458752},
+    {'id': 0x710, 'name': 'CH571', 'block_size': 256, 'loader': LOADER_573,  'code_base': 0x00000000, 'protect': None, 'esig': False, 'code_size': 196608},
+    {'id': 0x730, 'name': 'CH573', 'block_size': 256, 'loader': LOADER_573,  'code_base': 0x00000000, 'protect': None, 'esig': False, 'code_size': 458752},
+    {'id': 0x810, 'name': 'CH581', 'block_size': 256, 'loader': LOADER_583,  'code_base': 0x00000000, 'protect': None, 'esig': False, 'code_size': 196608},
+    {'id': 0x820, 'name': 'CH582', 'block_size': 256, 'loader': LOADER_583,  'code_base': 0x00000000, 'protect': None, 'esig': False, 'code_size': 458752},
+    {'id': 0x830, 'name': 'CH583', 'block_size': 256, 'loader': LOADER_583,  'code_base': 0x00000000, 'protect': None, 'esig': False, 'code_size': 458752},
+    {'id': 0x840, 'name': 'CH584', 'block_size': 256, 'loader': LOADER_583,  'code_base': 0x00000000, 'protect': None, 'esig': False, 'code_size': 458752},
+    {'id': 0x930, 'name': 'CH585', 'block_size': 256, 'loader': LOADER_583,  'code_base': 0x00000000, 'protect': None, 'esig': False, 'code_size': 458752},
+    {'id': 0x910, 'name': 'CH591', 'block_size': 256, 'loader': LOADER_583,  'code_base': 0x00000000, 'protect': None, 'esig': False, 'code_size': 196608},
+    {'id': 0x920, 'name': 'CH592', 'block_size': 256, 'loader': LOADER_583,  'code_base': 0x00000000, 'protect': None, 'esig': False, 'code_size': 458752}
 ]
 
 # ===================================================================================

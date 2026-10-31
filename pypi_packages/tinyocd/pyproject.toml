@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name         = "tinyocd"
+version      = "1.0.0"
+description  = "Programming Tool for STM32, PY32 and SAMD Microcontrollers via CMSIS-DAP, ST-Link or J-Link"
+keywords     = ["SWD", "ARM", "Cortex-M", "STM32", "PY32", "PUYA", "SAMD", "ATSAMD21", "CMSIS-DAP", "DAPLink", "ST-Link", "J-Link", "microcontroller"]
+dependencies = ["pyusb", "libusb-package; platform_system == 'Windows'"]
+requires-python = ">=3.8"
+authors = [
+    { name="Stefan Wagner", email="wagiminator@web.de" },
+]
+maintainers = [
+    { name="Stefan Wagner", email="wagiminator@web.de" },
+]
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Embedded Systems",
+]
+
+[project.optional-dependencies]
+hid = ["hidapi"]
+
+[project.scripts]
+tinyocd = "tinyocd.tinyocd:_main"
+
+[project.urls]
+Homepage   = "https://wagiminator.github.io/"
+Repository = "https://github.com/wagiminator/MCU-Flash-Tools"
+Issues     = "https://github.com/wagiminator/MCU-Flash-Tools/issues"
