@@ -11,6 +11,7 @@ This is a compilation of straightforward In-System Programming (ISP) flash tools
 - [avrprog.py  - Flashing classic AVRs via ISP with USBasp or USBtinyISP](#avrprog)
 - [stc8isp.py  - Flashing STC8G/8H with USB-to-serial converter via embedded UART bootloader](#stc8isp)
 - [stc8usb.py  - Flashing STC8H8KxxU via embedded USB bootloader](#stc8usb)
+- [tinypro.py  - Flashing (E)EPROMs with XGecu TL866A, TL866CS, TL866II+, and T48](#tinypro)
 
 In order for these tools to work, Python3 must be installed on your system. To do this, follow these [instructions](https://www.pythontutorial.net/getting-started/install-python/). In addition [PyUSB](https://github.com/pyusb/pyusb), [PySerial](https://github.com/pyserial/pyserial) and [pyhidapi](https://pypi.org/project/hid/) must be installed. On Linux (Debian-based), all of this can be done with the following commands:
 
@@ -569,12 +570,12 @@ python3 stc8isp.py -p /dev/ttyUSB0 -t 24000000 -f firmware.bin
 Take a look [here](https://pypi.org/project/stc8isp/).
 
 ## stc8usb
-## Description
+### Description
 This tool allows you to flash STC8H8KxxU microcontrollers through their USB interface, using the pre-installed embedded USB bootloader.
 
 Supported microcontrollers: STC8H8K16U, STC8H8K32U, STC8H8K48U, STC8H8K60U, STC8H8K64U.
 
-## Preparations
+### Preparations
 Because the USB bootloader functions as a Human Interface Device (HID), there's no need to install drivers. However, Linux doesn't initially grant sufficient permissions to access the bootloader. To resolve this issue, open a terminal and execute the following commands:
 
 ```
@@ -604,6 +605,66 @@ Possible values for -t (Hz): 250000, 500000, 1000000, 1382400, 2000000, 2764800,
 
 ### Installation via pip
 Take a look [here](https://pypi.org/project/stc8usb/).
+
+## tinypro
+### Description
+With this tool, (E)EPROMs and flash memory ICs can be read, written and verified as binary images using the XGecu TL866A, TL866CS, TL866II+, and T48 universal programmers. The programmer is detected automatically. SPI flash chips are detected automatically by their JEDEC ID; all other chips are selected by name (the chip ID is checked if the chip has one).
+
+Supported memory types (over 22,000 chip names for the TL866II+/T48 and over 12,000 for the TL866A/CS), among others:
+- parallel EPROMs, OTP EPROMs and EEPROMs (27Cxxx, 28Cxxx, ...), also 16 bit (27C1024, ...)
+- parallel flash (29Fxxx, 39SFxxx, 49Fxxx, 28Fxxx, ...), also in TSOP/PLCC/SOP packages with adapter
+- SPI flash and SPI EEPROMs (25xxx), AT45 DataFlash, FWH/LPC flash
+- I2C EEPROMs (24Cxx) and Microwire EEPROMs (93Cxx)
+
+All other functions of the programmers (MCUs, PLDs, logic IC tests, ICSP, ...) are deliberately not supported. Use `tinypro --list PATTERN` to search the supported chips.
+
+The tool is a Python port of the relevant parts of [minipro](https://gitlab.com/DavidGriffith/minipro); the chip database was generated from minipro's infoic.xml.
+
+### Preparations
+Linux users need permission to access the programmer. Run:
+```
+echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="04d8", ATTR{idProduct}=="e11c", MODE="666"' | sudo tee /etc/udev/rules.d/99-tinypro.rules
+echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="a466", ATTR{idProduct}=="0a53", MODE="666"' | sudo tee -a /etc/udev/rules.d/99-tinypro.rules
+sudo udevadm control --reload-rules
+```
+
+On Windows, the TL866II+ and T48 work with the original XGecu driver (WinUSB). The TL866A/CS needs a WinUSB driver, which can be installed with [Zadig](https://zadig.akeo.ie). The libusb backend is installed automatically with the package (libusb-package).
+
+### Usage as a Script
+Connect the programmer to your PC and insert the chip into the ZIF socket (or into the required adapter).
+
+```
+Usage: tinypro [-h] [-d DEVICE] [-r FILE] [-w FILE] [-v FILE] [-b] [-e] [-m {code,data}] [-P] [-y] [-a FILE] [-l [PATTERN]]
+
+Optional arguments:
+  -h, --help                show help message and exit
+  -d, --device DEVICE       chip name, e.g. AT28C256 (default: auto-detect SPI flash)
+  -r, --read FILE           read memory and save to BIN file
+  -w, --write FILE          write BIN file to memory and verify (erases chip first)
+  -v, --verify FILE         verify memory against BIN file
+  -b, --blank               perform a blank check
+  -e, --erase               erase chip
+  -m, --memory {code,data}  memory section (default: code)
+  -P, --protect             write-protect chip after writing (if supported)
+  -y, --ignoreid            continue on chip ID mismatch (at your own risk)
+  -a, --algorithm FILE      path to algorithm.xml (T56 only)
+  -l, --list [PATTERN]      list supported chips (optionally matching PATTERN)
+
+The actions are executed in the order: read, erase, write, verify, blank check.
+Without action arguments the tool shows programmer and chip.
+
+Examples:
+tinypro -r backup.bin                  (read SPI flash, auto-detect)
+tinypro -d AT28C256 -w image.bin       (write parallel EEPROM)
+tinypro -d 27C512 -v image.bin         (verify EPROM)
+tinypro -l 25Q32                       (search chip names)
+```
+
+Notes:
+- Chip names can be given with or without package (e.g. `27C512` or `27C512@PLCC32`); without package the DIP version is preferred.
+- A BIN file smaller than the memory is written to the start of the memory, the rest of the memory is left blank (after erasing).
+- Flash memories are erased before writing; write protection is removed automatically if the chip requires it. UV-EPROMs must be blank before writing.
+- SPI flash is auto-detected in the 8-pin and 16-pin socket positions. For other chips use `-d`.
 
 ## Links
 1. [MCU Templates](https://github.com/wagiminator/MCU-Templates)
