@@ -153,7 +153,6 @@ USB2SERIAL      PY32F002A/F003/F030    PY32F07x/F040    PY32F403/F303
 +--------+
 |     RXD| <--- PA2 or PA9  or PA14    PA9  or PA14     PA9  or PB10
 |     TXD| ---> PA3 or PA10 or PA15    PA10 or PA15     PA10 or PB11
-
 |     VDD| ---> VDD                    VDD              VDD
 |     GND| ---> GND                    GND              GND
 +--------+
@@ -280,7 +279,7 @@ python3 stm32isp.py -f firmware.bin
 ### Installation via pip
 Take a look [here](https://pypi.org/project/stm32isp/).
 
-##tinyocd
+## tinyocd
 ### Description
 tinyOCD is a simple programming tool for ARM Cortex-M microcontrollers using the SWD interface. It works with CMSIS-DAP v1 (HID) and v2 (bulk) programmers (e.g. DAPLink, Raspberry Pi Debug Probe), ST-Link V2, V2-1 and V3 as well as SEGGER J-Link. Programmer and chip are detected automatically. The flash memory is programmed by a small generic flash loader that runs in the RAM of the target.
 
@@ -311,7 +310,7 @@ Add further lines for the vendor IDs of other CMSIS-DAP programmers (e.g. 2e8a, 
 
 On Windows, ST-Link (with ST driver) and CMSIS-DAP v2 (WinUSB) normally work out of the box. A J-Link must use the WinUSB driver (J-Link Configurator: "Use WinUSB") or a libusb driver installed with [Zadig](https://zadig.akeo.ie/).
 
-## Usage as a Script
+### Usage as a Script
 Connect the programmer to your PC and to the SWD interface of the MCU (SWDIO, SWCLK, GND, optionally NRST and VCC).
 
 ```
