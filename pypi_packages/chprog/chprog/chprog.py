@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   chprog - USB Programming Tool for WCH Microcontrollers
-# Version:   v2.6
+# Version:   v2.7
 # Year:      2022
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -43,6 +43,7 @@
 #
 # Connect the MCU via USB to your PC. The MCU must be in bootloader mode!
 # Run "python3 chprog.py firmware.bin".
+# Run "python3 chprog.py" without arguments to show the chip and its configuration.
 
 
 import usb.core
@@ -54,11 +55,30 @@ import sys
 # ===================================================================================
 
 def _main():
-    if len(sys.argv) != 2:
-        sys.stderr.write('ERROR: No bin file selected!\n')
+    if len(sys.argv) > 2:
+        sys.stderr.write('ERROR: Usage: chprog.py [firmware.bin]\n')
         sys.exit(1)
 
     isp = None
+
+    # Without arguments only the chip info is shown (the chip stays in bootloader mode)
+    if len(sys.argv) == 1:
+        try:
+            print('Connecting to bootloader ...')
+            isp = Programmer()
+            isp.detect(unlock=False)
+            print('Found %s with bootloader v%s.' % (isp.chipname, isp.bootloader))
+            print('Code flash: %d bytes, data flash: %d bytes' % (isp.code_flash_size, isp.data_flash_size))
+            print('Chip UID:   %s' % ' '.join('%02x' % x for x in isp.chipuid))
+            print('Config:     %s' % ' '.join('%02x' % x for x in isp.configdata))
+            isp.close()
+        except Exception as ex:
+            sys.stderr.write('ERROR: %s!\n' % str(ex))
+            if isp is not None: isp.close()
+            sys.exit(1)
+        print('DONE.')
+        sys.exit(0)
+
     try:
         with open(sys.argv[1], 'rb') as f: data = f.read()
         if len(data) == 0:
@@ -125,7 +145,7 @@ class Programmer:
         return reply
 
     # Detect, identify and setup chip
-    def detect(self):
+    def detect(self, unlock=True):
         # Read type of chip
         identanswer = self.sendcommand(CH_STR_CHIP_DETECT)
         if len(identanswer) != 6:
@@ -180,6 +200,8 @@ class Programmer:
         self.sendkey()
 
         # Unlock chip (remove read protection)
+        if not unlock:
+            return
         if (self.wpremove) and (self.configdata[0] == 0xff):
             self.configdata[0] = 0xa5
             self.sendcommand(b'\xa8\x0e\x00\x07\x00' + self.configdata)

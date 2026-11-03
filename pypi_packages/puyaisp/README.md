@@ -45,7 +45,7 @@ Set your MCU to bootloader mode by using ONE of the following methods:
 ```
 Usage: puyaisp [-h] [-u] [-l] [-e] [-o] [-G] [-R] [-t {serial,hid}] [-f FLASH]
                [--vid VID] [--pid PID] [--path PATH]
-               [--timeout TIMEOUT]
+               [--timeout TIMEOUT] [--list]
 
 Optional arguments:
   -h, --help                     show this help message and exit
@@ -61,11 +61,14 @@ Optional arguments:
   --pid PID                      HID PID
   --path PATH                    hidapi device path
   --timeout TIMEOUT              read timeout in ms
+  --list                         list supported chips
 
 Examples:
 puyaisp -f firmware.bin
 puyaisp -t hid -f firmware.bin
 ```
+
+Without action arguments, puyaisp shows the chip, its flash size and its option bytes (or that the chip is locked) and then starts the firmware.
 
 ## Links
 - [MCU Flash Tools](https://github.com/wagiminator/MCU-Flash-Tools)

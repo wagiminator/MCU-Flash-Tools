@@ -74,7 +74,7 @@ Set your MCU to boot mode by using ONE of the following method:
 On STM32C0 and STM32G0 microcontrollers, the BOOT0 pin is initially disabled. When the chip is brand new or the main flash memory is erased, this isn't an issue as the embedded bootloader automatically kicks in. By using the stm32isp tool, the BOOT0 pin will be activated for subsequent use. However, if the chip has been previously programmed using a different software tool, the bootloader might not be accessible through the BOOT0 pin anymore. In such cases, the nBOOT_SEL bit in the User Option Bytes must be cleared (set to 0) using an SWD programmer like ST-Link and the appropriate software.
 
 ```
-Usage: stm32isp [-h] [-u] [-l] [-e] [-f FLASH]
+Usage: stm32isp [-h] [-u] [-l] [-e] [-f FLASH] [--list]
 
 Optional arguments:
   -h, --help                show this help message and exit
@@ -82,10 +82,13 @@ Optional arguments:
   -l, --lock                lock chip (set read protection)
   -e, --erase               perform chip erase (implied with -f)
   -f FLASH, --flash FLASH   write BIN file to flash and verify
+  --list                    list supported chips
 
 Example:
 stm32isp -f firmware.bin
 ```
+
+Without action arguments, stm32isp shows the chip, its flash size, whether it is read protected, its option bytes and (STM32C0/G0) whether the BOOT0 pin is enabled. Then the firmware is started.
 
 ## Links
 - [MCU Flash Tools](https://github.com/wagiminator/MCU-Flash-Tools)

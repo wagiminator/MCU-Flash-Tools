@@ -47,11 +47,13 @@ Now run the following command (example):
 python3 chprog.py firmware.bin
 ```
 
+Run chprog without arguments to show the chip, its flash size, UID and configuration bytes. The chip stays in bootloader mode.
+
 ### Installation via pip
 Take a look [here](https://pypi.org/project/chprog/).
 
 ### Web-App
-You can try the web browser port [here](https://wagiminator.github.io/apps/chprog/).
+You can try the web browser port [here](https://wagiminator.github.io/apps/chprog/) for Chrome, Edge or Opera on a desktop computer.
 
 ## rvprog
 ### Description
@@ -118,6 +120,10 @@ Optional arguments:
   -G, --pingpio             make PD7 a GPIO pin (CH32V00x only)
   -R, --pinreset            make PD7 a reset pin (CH32V00x only)
   -f FLASH, --flash FLASH   write BIN file to flash
+  --list                    list supported chips
+
+Without action arguments, rvprog shows the programmer, the chip, 
+its flash size and whether the chip is read protected.
 
 Example:
 python3 rvprog.py -f firmware.bin
@@ -127,7 +133,7 @@ python3 rvprog.py -f firmware.bin
 Take a look [here](https://pypi.org/project/rvprog/).
 
 ### Web-App
-You can try the web browser port [here](https://wagiminator.github.io/apps/rvprog/).
+You can try the web browser port [here](https://wagiminator.github.io/apps/rvprog/) for Chrome, Edge or Opera on a desktop computer.
 
 ## puyaisp
 ### Description
@@ -183,6 +189,10 @@ Optional arguments:
   --pid PID                      HID PID
   --path PATH                    hidapi device path
   --timeout TIMEOUT              read timeout in ms
+  --list                         list supported chips
+
+Without action arguments, puyaisp shows the chip, its flash size and 
+its option bytes (or that the chip is locked) and then starts the firmware.
 
 Examples:
 python3 puyaisp -f firmware.bin
@@ -193,7 +203,7 @@ python3 puyaisp -t hid -f firmware.bin
 Take a look [here](https://pypi.org/project/puyaisp/).
 
 ### Web-App
-You can try the web browser port [here](https://wagiminator.github.io/apps/puyaisp/).
+You can try the web browser port [here](https://wagiminator.github.io/apps/puyaisp/) for Chrome, Edge or Opera on a desktop computer.
 
 ## stm32isp
 ### Description
@@ -272,6 +282,11 @@ Optional arguments:
   -l, --lock                lock chip (set read protection)
   -e, --erase               perform chip erase (implied with -f)
   -f FLASH, --flash FLASH   write BIN file to flash and verify
+  --list                    list supported chips
+
+Without action arguments, stm32isp shows the chip, its flash size, 
+whether it is read protected, its option bytes and whether the 
+BOOT0 pin is enabled (STM32C0/G0). Then the firmware is started.
 
 Example:
 python3 stm32isp.py -f firmware.bin
@@ -279,6 +294,9 @@ python3 stm32isp.py -f firmware.bin
 
 ### Installation via pip
 Take a look [here](https://pypi.org/project/stm32isp/).
+
+### Web-App
+You can try the web browser port [here](https://wagiminator.github.io/apps/stm32isp/) for Chrome, Edge or Opera on a desktop computer.
 
 ## tinyocd
 ### Description
@@ -330,6 +348,10 @@ Optional arguments:
   -f FLASH, --flash FLASH   write BIN file to flash and verify
   -t, --list                list supported chips
 
+Without action arguments, tinyocd shows the programmer, the chip, whether 
+it is read protected and its option byte registers (user row on SAMD). 
+Then the firmware is started.
+
 Example:
 python3 tinyocd -f firmware.bin
 ```
@@ -342,6 +364,9 @@ Notes:
 
 ### Installation via pip
 Take a look [here](https://pypi.org/project/tinyocd/).
+
+### Web-App
+You can try the web browser port [here](https://wagiminator.github.io/apps/swdprog/) for Chrome, Edge or Opera on a desktop computer.
 
 ## tinyupdi
 ### Description
@@ -383,7 +408,10 @@ Optional arguments:
   -fs [FUSES [FUSES ...]], --fuses [FUSES [FUSES ...]]
                             fuses to set (syntax: fuse_nr:0xvalue)
   -t TRIM, --trim TRIM      configure oscillator for given frequency (set fuse 2)
-  
+  --list                    list supported devices
+
+Without action arguments, tinyupdi shows the device and its fuses.
+
 Example:
 python3 tinyupdi.py -f firmware.bin -fs 6:0x04 7:0x00 8:0x00 -t 8000000
 ```
@@ -394,7 +422,7 @@ A locked device is only unlocked (by a chip erase) when -e or -f is given. Chang
 Take a look [here](https://pypi.org/project/tinyupdi/).
 
 ### Web-App
-You can try the web browser port [here](https://wagiminator.github.io/apps/tinyupdi/).
+You can try the web browser port [here](https://wagiminator.github.io/apps/serialupdi/) for Chrome, Edge or Opera on a desktop computer.
 
 ## megaupdi
 ### Description
@@ -448,9 +476,11 @@ Optional arguments:
                             fuses to set (syntax: fuse_nr:0xvalue)
   -t TRIM, --trim TRIM      configure oscillator for given frequency (set fuse 2)
   -l, --list                list supported devices
-Examples:
-megaupdi -f firmware.bin
 
+Without action arguments, megaupdi shows the device and its fuses.
+
+Examples:
+python3 megaupdi -f firmware.bin
 python3 megaupdi -d avr128da28 -f firmware.bin -fs 0:0x00 1:0x00
 python3 megaupdi -f firmware.bin -fs 6:0x04 7:0x00 8:0x00 -t 8000000
 ```
@@ -465,6 +495,9 @@ Notes:
 ### Installation via pip
 Take a look [here](https://pypi.org/project/megaupdi/).
 
+### Web-App
+You can try the web browser port [here](https://wagiminator.github.io/apps/serialupdi/) for Chrome, Edge or Opera on a desktop computer.
+
 ## avrprog
 ### Description
 With this tool, classic AVR microcontrollers can be flashed via ISP with a USBasp or a USBtinyISP programmer. The programmer type and the connected chip are detected automatically. BIN and Intel HEX files are supported; fuses and lock bits can be written, and fuse settings that would disable ISP (RSTDISBL, DWEN, SPIEN) are refused unless forced.
@@ -478,8 +511,6 @@ The tool is a Python port of the relevant parts of [avrdude](https://github.com/
 - ATmega8U2/16U2/32U2, ATmega16U4/32U4, AT90USB82/162/646/647/1286/1287
 - ATmega16M1/32M1/64M1, ATmega32C1/64C1, AT90CAN32/64/128, AT90PWM1/2(B)/3(B)/81/161/216/316
 - ATmega16HVB/32HVB, ATmega32HVE2/64HVE2, ATmegaS64M1/S128, ATA5505, ATA6612C/6613C/6614Q/6616C/6617C, ATA664251
-
-Use `avrprog --list` to show all supported chips.
 
 ### Preparations
 Linux users need permission to access the device. Run:
@@ -511,6 +542,7 @@ Optional arguments:
   -r, --read                read and show fuses, lock bits and calibration
   -F, --force               allow fuse settings that disable ISP (RSTDISBL, DWEN, SPIEN)
   --list                    list supported chips
+
 Without action arguments the tool shows programmer, chip and fuses.
 
 Example:
@@ -521,7 +553,7 @@ python3 avrprog.py -f firmware.hex -l 0xe2 -H 0xdf -E 0xff
 Take a look [here](https://pypi.org/project/avrprog/).
 
 ### Web-App
-You can try the web browser port [here](https://wagiminator.github.io/apps/avrisp/).
+You can try the web browser port [here](https://wagiminator.github.io/apps/avrisp/) for Chrome, Edge or Opera on a desktop computer.
 
 ## stc8isp
 ### Description
@@ -561,6 +593,10 @@ Optional arguments:
   -t TRIM,  --trim TRIM     trim IRC to frequency in Hz (128000 - 36000000)
   -e,       --erase         perform chip erase (implied with -f)
   -f FLASH, --flash FLASH   write BIN file to flash
+  --list                    list supported chips
+
+Without action arguments (only -p), stc8isp shows the chip, 
+its frequency, flash size and option bytes.
 
 Example:
 python3 stc8isp.py -p /dev/ttyUSB0 -t 24000000 -f firmware.bin
@@ -596,6 +632,10 @@ Optional arguments:
   -t TRIM,  --trim TRIM     set MCU system frequency
   -e,       --erase         perform chip erase (implied with -f)
   -f FLASH, --flash FLASH   write BIN file to flash
+  --list                    list supported chips
+
+Without arguments, stc8usb shows the chip, its frequency, 
+flash size and option bytes.
 
 Example:
 python3 stc8usb.py -t 24000000 -f firmware.bin
@@ -654,10 +694,10 @@ The actions are executed in the order: read, erase, write, verify, blank check.
 Without action arguments the tool shows programmer and chip.
 
 Examples:
-tinypro -r backup.bin                  (read SPI flash, auto-detect)
-tinypro -d AT28C256 -w image.bin       (write parallel EEPROM)
-tinypro -d 27C512 -v image.bin         (verify EPROM)
-tinypro -l 25Q32                       (search chip names)
+python3 tinypro -r backup.bin                  (read SPI flash, auto-detect)
+python3 tinypro -d AT28C256 -w image.bin       (write parallel EEPROM)
+python3 tinypro -d 27C512 -v image.bin         (verify EPROM)
+python3 tinypro -l 25Q32                       (search chip names)
 ```
 
 Notes:
@@ -665,6 +705,12 @@ Notes:
 - A BIN file smaller than the memory is written to the start of the memory, the rest of the memory is left blank (after erasing).
 - Flash memories are erased before writing; write protection is removed automatically if the chip requires it. UV-EPROMs must be blank before writing.
 - SPI flash is auto-detected in the 8-pin and 16-pin socket positions. For other chips use `-d`.
+
+### Installation via pip
+Take a look [here](https://pypi.org/project/tinypro/).
+
+### Web-App
+You can try the web browser port [here](https://wagiminator.github.io/apps/tinypro/) for Chrome, Edge or Opera on a desktop computer.
 
 ## Links
 1. [MCU Templates](https://github.com/wagiminator/MCU-Templates)

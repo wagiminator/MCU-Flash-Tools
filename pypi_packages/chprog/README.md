@@ -30,6 +30,8 @@ Now run the following command (example):
 chprog firmware.bin
 ```
 
+Run chprog without arguments to show the chip, its flash size, UID and configuration bytes. The chip stays in bootloader mode.
+
 ## Links
 - [MCU Flash Tools](https://github.com/wagiminator/MCU-Flash-Tools)
 - [MCU Templates](https://github.com/wagiminator/MCU-Templates)

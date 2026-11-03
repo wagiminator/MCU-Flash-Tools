@@ -25,17 +25,20 @@ To initiate new uploads, the bootloader needs to be manually started. Begin by u
 If your board doesn't have a BOOT button, you'll need to short pin P3.2 to ground while connecting to achieve the same effect.
 
 ```
-Usage: stc8usb [-h] [-t TRIM] [-e] [-f FLASH]
+Usage: stc8usb [-h] [-t TRIM] [-e] [-f FLASH] [--list]
 
 Optional arguments:
   -h,       --help          show this help message and exit
   -t TRIM,  --trim TRIM     set MCU system frequency
   -e,       --erase         perform chip erase (implied with -f)
   -f FLASH, --flash FLASH   write BIN file to flash
+  --list                    list supported chips
 
 Example:
 stc8usb -t 24000000 -f firmware.bin
 ```
+
+Without arguments, stc8usb shows the chip, its frequency, flash size and option bytes.
 
 Possible values for -t (Hz): 250000, 500000, 1000000, 1382400, 2000000, 2764800, 3000000, 4000000, 5000000, 5529600, 6000000, 8000000, 10000000, 11059200, 12000000, 16000000, 18432000, 20000000, 22118400, 24000000, 27000000, 30000000, 33177600, 35000000, 36864000, 40000000, 44236800, 48000000. The other option bytes of the MCU are retained.
 

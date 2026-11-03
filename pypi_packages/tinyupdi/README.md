@@ -35,7 +35,7 @@ USB2SERIAL                       tinyAVR
 Alternatively, a pre-assembled [SerialUPDI programmer](https://github.com/wagiminator/AVR-Programmer) can be used.
 
 ```
-Usage: tinyupdi [-h] [-d DEVICE] [-e] [-f FLASH] [-fs [FUSES [FUSES ...]]] [-t TRIM]
+Usage: tinyupdi [-h] [-d DEVICE] [-e] [-f FLASH] [-fs [FUSES [FUSES ...]]] [-t TRIM] [--list]
 
 Optional arguments:
   -h, --help                show help message and exit
@@ -45,9 +45,12 @@ Optional arguments:
   -fs [FUSES [FUSES ...]], --fuses [FUSES [FUSES ...]]
                             fuses to set (syntax: fuse_nr:0xvalue, fuse_nr 0 - 10)
   -t TRIM, --trim TRIM      configure oscillator for given frequency (set fuse 2)
+  --list                    list supported devices
 Example:
 tinyupdi -f firmware.bin -fs 6:0x04 7:0x00 8:0x00 -t 8000000
 ```
+
+Without action arguments, tinyupdi shows the device and its fuses.
 
 A locked device is only unlocked (by a chip erase) when -e or -f is given. Changing fuse 5 (SYSCFG0) can disable the UPDI pin; the device can then only be programmed with a high-voltage programmer.
 

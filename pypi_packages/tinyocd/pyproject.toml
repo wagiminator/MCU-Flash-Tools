@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name         = "tinyocd"
-version      = "1.0.0"
+version      = "1.1.0"
 description  = "Programming Tool for STM32, PY32 and SAMD Microcontrollers via CMSIS-DAP, ST-Link or J-Link"
 keywords     = ["SWD", "ARM", "Cortex-M", "STM32", "PY32", "PUYA", "SAMD", "ATSAMD21", "CMSIS-DAP", "DAPLink", "ST-Link", "J-Link", "microcontroller"]
 dependencies = ["pyusb", "libusb-package; platform_system == 'Windows'"]

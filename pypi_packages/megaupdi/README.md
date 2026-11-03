@@ -63,6 +63,8 @@ megaupdi -d avr128da28 -f firmware.bin -fs 0:0x00 1:0x00
 megaupdi -f firmware.bin -fs 6:0x04 7:0x00 8:0x00 -t 8000000
 ```
 
+Without action arguments, megaupdi shows the device and its fuses.
+
 Notes:
 - Fuse numbers are relative to the first fuse (FUSE0). Valid numbers depend on the device family: tinyAVR/megaAVR 0: 0 - 10 (10 = LOCKBIT), AVR Dx/Ex/Lx/Sx: e.g. 0, 1, 2, 5, 6, 7, 8 (plus 10 on some families). Invalid fuse numbers are rejected before anything is erased or written.
 - -t sets the oscillator fuse (16 or 20 MHz) on tinyAVR, megaAVR 0, AVR EA/EB and AVR LA. The system frequency must be reachable with the clock prescaler, which has to be set by the firmware.

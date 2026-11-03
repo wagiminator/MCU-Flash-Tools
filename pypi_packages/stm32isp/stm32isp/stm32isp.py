@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   stm32isp - Programming Tool for STM32 Microcontrollers
-# Version:   v1.0
+# Version:   v1.1
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -70,6 +70,8 @@
 #   has them).
 #
 # Run "python3 stm32isp.py -f firmware.bin".
+# Run "python3 stm32isp.py" without arguments to show the chip and its OPTION bytes.
+# Run "python3 stm32isp.py --list" to list the supported chips.
 
 # If the PID/VID of the USB-to-Serial converter is known, it can be defined here,
 # which can make the auto-detection a lot faster. If not, comment out or delete.
@@ -98,12 +100,17 @@ def _main():
     parser.add_argument('-l', '--lock',     action='store_true', help='lock chip (set read protection)')
     parser.add_argument('-e', '--erase',    action='store_true', help='perform a chip erase (implied with -f)')
     parser.add_argument('-f', '--flash',    help='write BIN file to flash and verify')
+    parser.add_argument('--list',           action='store_true', help='list supported chips')
     args = parser.parse_args(sys.argv[1:])
 
-    # Check arguments
-    if not any( (args.unlock, args.lock, args.erase, args.flash) ):
-        print('No arguments - no action!')
+    # List supported chips
+    if args.list:
+        for d in DEVICES:
+            print('%-24s ID 0x%03x, %4d KB flash' % (d['name'], d['id'], d['flash']))
         sys.exit(0)
+
+    # Check arguments (without action arguments only the chip info is shown)
+    showinfo = not any( (args.unlock, args.lock, args.erase, args.flash) )
 
     # Read binary file
     data = None
@@ -137,7 +144,10 @@ def _main():
         unlocked = False
         if isp.checklocked():
             if not any( (args.unlock, args.erase, data) ):
-                print('INFO: Chip is already locked.')
+                if showinfo:
+                    print('INFO: Chip is locked (read protection), flash and OPTION bytes cannot be read.')
+                else:
+                    print('INFO: Chip is already locked.')
                 isp.close()
                 print('DONE.')
                 sys.exit(0)
@@ -159,6 +169,24 @@ def _main():
         isp.readdetails()
         if data is not None and isp.flashsize and len(data) > isp.flashsize:
             raise Exception('Not enough memory (file: %d bytes, flash: %d bytes)' % (len(data), isp.flashsize))
+
+        # Show chip info only (no action arguments)
+        if showinfo:
+            print('Flash size: %d KB' % (isp.flashsize // 1024))
+            print('Read protection: off')
+            if isp.family['opt_addr'] is not None:
+                try:
+                    option = isp.readflash(isp.family['opt_addr'], 16)
+                    print('OPTION bytes at 0x%08x: %s' % (isp.family['opt_addr'], ' '.join('%02x' % x for x in option)))
+                except CommandError as ex:
+                    if ex.reply != ST_REPLY_NACK:
+                        raise
+                    print('INFO: OPTION bytes cannot be read.')
+            if isp.family['bootsel'] and isp.option:
+                print('BOOT0 pin: %s' % ('disabled (nBOOT_SEL = 1), will be enabled with -e or -f' if isp.checkbootpin() else 'enabled'))
+            isp.run()
+            print('DONE.')
+            sys.exit(0)
 
         # Erase chip
         if args.erase and not unlocked:

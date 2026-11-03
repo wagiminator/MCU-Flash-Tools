@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   stc8usb - USB Programming Tool for STC8H8KxxU Microcontrollers
-# Version:   v1.0
+# Version:   v1.1
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -36,6 +36,8 @@
 # to short pin P3.2 to ground while connecting.
 #
 # Run "python3 stc8usb.py -t 24000000 -f firmware.bin".
+# Run "python3 stc8usb.py" without arguments to show the chip and its option bytes,
+# "python3 stc8usb.py --list" to list the supported chips.
 
 # ===================================================================================
 # Libraries
@@ -55,7 +57,17 @@ def _main():
     parser.add_argument('-t', '--trim',  type=int, help='set MCU system frequency in Hz')
     parser.add_argument('-e', '--erase', action='store_true', help='perform chip erase (implied with -f)')
     parser.add_argument('-f', '--flash', help='write BIN file to flash')
+    parser.add_argument('--list',        action='store_true', help='list supported chips')
     args = parser.parse_args(sys.argv[1:])
+
+    # List supported chips
+    if args.list:
+        for d in STC_DEVICES:
+            print('%-12s ID 0x%04X, %5d bytes flash' % (d['name'], d['id'], d['flash_size']))
+        sys.exit(0)
+
+    # Without action arguments only the chip info is shown
+    showinfo = args.trim is None and not args.erase and args.flash is None
 
     # Check frequency
     if args.trim is not None and gettrim(args.trim) is None:
@@ -88,6 +100,11 @@ def _main():
         # Connect to and identify MCU
         isp.connect()
         print('SUCCESS: Found %s v%s @ %s.' % (isp.chipname, isp.chipverstr, isp.foscstr))
+
+        # Show chip info only (no action arguments)
+        if showinfo:
+            print('Flash size: %d bytes' % isp.flash_size)
+            print('Option bytes: %s' % ' '.join('%02x' % x for x in isp.options))
 
         # Check if binary fits into flash
         if data is not None and len(data) > isp.flash_size:

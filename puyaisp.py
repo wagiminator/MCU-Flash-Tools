@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   puyaisp - Programming Tool for PUYA PY32 Microcontrollers
-# Version:   v1.5
+# Version:   v1.6
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -55,6 +55,8 @@
 # Unused RX pins of the bootloader UARTs should not float (use pull-up resistors).
 #
 # Run "python3 puyaisp.py -f firmware.bin".
+# Run "python3 puyaisp.py" without arguments to show the chip and its OPTION bytes.
+# Run "python3 puyaisp.py --list" to list the supported chips.
 
 # If the PID/VID of the USB-to-Serial converter is known, it can be defined here,
 # which can make the auto-detection a lot faster. If not, comment out or delete.
@@ -98,12 +100,19 @@ def _main():
     parser.add_argument('--pid',       type=lambda x: int(x, 0), default=PY_HID_PID, help='HID PID')
     parser.add_argument('--path',      help='hidapi device path')
     parser.add_argument('--timeout',   type=int, default=1000, help='read timeout in ms')
+    parser.add_argument('--list',      action='store_true', help='list supported chips')
     args = parser.parse_args(sys.argv[1:])
 
-    # Check arguments
-    if not any( (args.rstoption, args.unlock, args.lock, args.erase, args.nrstgpio, args.nrstreset, args.flash) ):
-        print('No arguments - no action!')
+    # List supported chips
+    if args.list:
+        for pid, chip in PY_CHIP_OPTIONS.items():
+            print('PID 0x%03x: %-20s %4d KB flash, OPTION bytes: %s' % (pid, chip['name'], chip['flash_size'] // 1024,
+                  ', '.join(name for name, offset in chip['option_words'])))
+        print('Other PY32 with the same bootloader can be flashed, but their OPTION bytes are not touched.')
         sys.exit(0)
+
+    # Check arguments (without action arguments only the chip info is shown)
+    showinfo = not any( (args.rstoption, args.unlock, args.lock, args.erase, args.nrstgpio, args.nrstreset, args.flash) )
     if args.nrstgpio and args.nrstreset:
         sys.stderr.write('ERROR: Options -G and -R exclude each other!\n')
         sys.exit(1)
@@ -142,6 +151,24 @@ def _main():
             print('SUCCESS: Found ' + isp.chip_options['name'] + ' with bootloader v' + isp.verstr + '.')
         else:
             print('WARNING: Chip with PID 0x%04x is not a known PY32!' % isp.pid)
+
+        # Show chip info only (no action arguments)
+        if showinfo:
+            if isp.chip_known:
+                print('Flash size: %d KB' % (isp.chip_options['flash_size'] // 1024))
+                try:
+                    isp.readoption()
+                except Exception as ex:
+                    if str(ex) != 'Chip is locked':
+                        raise
+                    print('INFO: Chip is locked (read protection), OPTION bytes cannot be read.')
+                    isp.reset()
+                    print('DONE.')
+                    sys.exit(0)
+                print('OPTION bytes: ' + isp.optionstr + ' (read protection off)')
+            isp.run()
+            print('DONE.')
+            sys.exit(0)
 
         # Unlock chip
         if args.unlock:

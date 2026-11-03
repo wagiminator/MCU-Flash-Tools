@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   stc8isp - Programming Tool for STC8G/8H Microcontrollers
-# Version:   v1.0
+# Version:   v1.1
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -40,6 +40,8 @@
 #
 # Run "python3 stc8isp.py -p /dev/ttyUSB0 -t 24000000 -f firmware.bin".
 # Perform a power cycle of your MCU (reconnect to power) when prompted.
+# Run "python3 stc8isp.py -p /dev/ttyUSB0" without action arguments to show the chip
+# and its option bytes, "python3 stc8isp.py --list" to list the supported chips.
 
 
 # ===================================================================================
@@ -96,7 +98,17 @@ def _main():
     parser.add_argument('-t', '--trim',  type=int, help='trim IRC to frequency in Hz')
     parser.add_argument('-e', '--erase', action='store_true', help='perform chip erase (implied with -f)')
     parser.add_argument('-f', '--flash', help='write BIN file to flash')
+    parser.add_argument('--list',        action='store_true', help='list supported chips')
     args = parser.parse_args(sys.argv[1:])
+
+    # List supported chips
+    if args.list:
+        for d in DEVICES:
+            print('%-20s ID 0x%04X, %5d bytes flash' % (d['name'], d['id'], d['flash_size']))
+        sys.exit(0)
+
+    # Without action arguments only the chip info is shown
+    showinfo = args.trim is None and not args.erase and args.flash is None
 
     # Checking command line arguments
     if (args.trim is not None) and (args.trim < STC_FCPU_MIN or args.trim > STC_FCPU_MAX):
@@ -130,6 +142,14 @@ def _main():
         print('Waiting for MCU power cycle ...')
         isp.connect()
         print('SUCCESS: Found %s v%s @ %s.' % (isp.chipname, isp.chipverstr, isp.foscstr))
+
+        # Show chip info only (no action arguments)
+        if showinfo:
+            print('Flash size: %d bytes' % isp.flash_size)
+            print('Option bytes: %s' % ' '.join('%02x' % x for x in isp.options))
+            isp.disconnect()
+            print('DONE.')
+            sys.exit(0)
 
         # Check if binary fits into flash
         if data is not None and len(data) > isp.flash_size:

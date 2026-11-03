@@ -2,7 +2,7 @@
 # ===================================================================================
 # Project:   megaUPDI - Simple serial UPDI programmer for all AVR microcontrollers
 #                       with UPDI interface (based on TinyUPDI)
-# Version:   v1.0
+# Version:   v1.1
 # Year:      2026
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -67,6 +67,7 @@
 #                             fuses to set (syntax: fuse_nr:0xvalue)
 #   -t TRIM, --trim TRIM      configure oscillator for given frequency (fuse 2)
 #   -l, --list                list supported devices
+#   Without action arguments, the device and its fuses are shown.
 # - Example:
 #   python3 megaupdi.py -f firmware.bin
 #   python3 megaupdi.py -d avr128da28 -f firmware.bin -fs 0:0x00 1:0x00
@@ -114,10 +115,8 @@ def _main():
             print('%-11s %s' % (family + ':', ', '.join(names)))
         sys.exit(0)
 
-    # Check arguments
-    if not any( (args.fuses, args.flash, args.erase, args.trim) ):
-        print('No arguments - no action!')
-        sys.exit(0)
+    # Check arguments (without action arguments the device and its fuses are shown)
+    showinfo = not any( (args.fuses, args.flash, args.erase, args.trim) )
 
     if args.device is not None:
         args.device = args.device.lower()
@@ -168,6 +167,11 @@ def _main():
     try:
         # Unlock device (chip erase by key) if necessary
         if megaupdi.locked:
+            if showinfo:
+                print('INFO: Device is locked, it can only be unlocked by a chip erase (-e).')
+                megaupdi.exit()
+                print('DONE.')
+                sys.exit(0)
             if not ((args.erase) or (data is not None)):
                 raise Exception('Device is locked, use -e or -f to unlock it (erases the chip)')
             print('Device is locked, unlocking with chip erase ...')
@@ -188,6 +192,10 @@ def _main():
             megaupdi.check_fuse(fuse[0], fuse[1])
         if args.trim is not None:
             megaupdi.check_trim(args.trim)
+
+        # Show fuses (no action arguments)
+        if showinfo:
+            print('Fuses: ' + ', '.join('%d: 0x%02x' % fuse for fuse in megaupdi.read_fuses()))
 
         # Perform chip erase
         if (args.erase) or (data is not None):
@@ -380,6 +388,10 @@ class Programmer(Serial):
     # Set single fuse
     def set_fuse(self, fusenum, value):
         self.__write_fuse(self.fuses_address + fusenum, value)
+
+    # Read all fuses of the detected device as list of (fuse number, value)
+    def read_fuses(self):
+        return [(fusenum, self.__read_fuse(self.fuses_address + fusenum)) for fusenum in self.family['fuselist']]
 
     # Verify single fuse
     def verify_fuse(self, fusenum, value):

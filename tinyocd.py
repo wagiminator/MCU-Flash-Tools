@@ -2,7 +2,7 @@
 # ===================================================================================
 # Project:   tinyOCD - Programming Tool for STM32, PY32 and SAMD Microcontrollers
 #                      via CMSIS-DAP (DAPLink), ST-Link or J-Link
-# Version:   v1.0
+# Version:   v1.1
 # Year:      2026
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -70,6 +70,8 @@
 #   -R, --pinreset            make NRST pin a reset pin
 #   -f FLASH, --flash FLASH   write BIN file to flash and verify
 #   -t, --list                list supported chips
+#   Without action arguments, the programmer, the chip and its option bytes
+#   (user row on SAMD) are shown.
 #
 # - Example:
 #   python3 tinyocd.py -f firmware.bin
@@ -113,10 +115,8 @@ def _main():
         print_supported_chips()
         sys.exit(0)
 
-    # Check arguments
-    if not any( (args.unlock, args.lock, args.erase, args.bootpin, args.pingpio, args.pinreset, args.flash) ):
-        print('No arguments - no action!')
-        sys.exit(0)
+    # Check arguments (without action arguments the chip info is shown)
+    showinfo = not any( (args.unlock, args.lock, args.erase, args.bootpin, args.pingpio, args.pinreset, args.flash) )
     if args.pingpio and args.pinreset:
         sys.stderr.write('ERROR: -G and -R cannot be used together!\n')
         sys.exit(1)
@@ -159,6 +159,17 @@ def _main():
             print('SUCCESS: Connected to %s.' % ocd.chip.name)
         if ocd.locked:
             print('Chip is read protected (locked).')
+
+        # Show option bytes (no action arguments)
+        if showinfo:
+            if not ocd.locked:
+                print('Read protection: off')
+            options = ocd.option_bytes()
+            if options and all(value is None for name, value in options):
+                print('INFO: Option bytes cannot be read.')
+            else:
+                for name, value in options:
+                    print('%-16s %s' % (name + ':', 'not readable' if value is None else '0x%08x' % value))
 
         # Check option support before doing anything
         if args.bootpin and not ocd.chip.has_bootpin:
@@ -1467,6 +1478,12 @@ class Target:
         self.chip.driver.nrst(gpio)
         self.reconnect_after_reset()
 
+    # Option byte registers (user row on SAMD) as list of (name, value or None)
+    def option_bytes(self):
+        if self.chip.driver is None:
+            return []
+        return self.chip.driver.options()
+
 
 # ===================================================================================
 # Flash Driver Base Class
@@ -1475,6 +1492,7 @@ class Target:
 class FlashDriver:
     unit = 4
     iwdg_freeze = None
+    option_regs = ()                                                # (name, offset) of option registers
 
     def __init__(self, target):
         self.t = target
@@ -1503,6 +1521,9 @@ class FlashDriver:
     def nrst(self, gpio):
         raise Exception('NRST pin configuration is not supported on this chip')
 
+    def options(self):
+        return [(name, self.t.try_read32(self.base + offset)) for name, offset in self.option_regs]
+
     def r(self, reg):
         return self.t.read32(self.base + reg)
 
@@ -1523,6 +1544,7 @@ class FlashDriver:
 
 class STM32F1Flash(FlashDriver):
     unit = 2
+    option_regs = (('FLASH_OBR', 0x1C), ('FLASH_WRPR', 0x20))
 
     def __init__(self, target, part, devid, size):
         super().__init__(target)
@@ -1628,6 +1650,7 @@ class STM32F1Flash(FlashDriver):
 
 class STM32F4Flash(FlashDriver):
     unit = 2
+    option_regs = (('FLASH_OPTCR', 0x14),)
 
     def __init__(self, target, part, devid, size):
         super().__init__(target)
@@ -1703,6 +1726,8 @@ class STM32F4Flash(FlashDriver):
 # ===================================================================================
 
 class STM32L0Flash(FlashDriver):
+    option_regs = (('FLASH_OPTR', 0x1C),)
+
     def __init__(self, target, part, devid, size):
         super().__init__(target)
         self.l1 = (part == 0xC23)
@@ -1794,6 +1819,7 @@ class STM32L4Flash(FlashDriver):
         self.busy = (1 << 16) | (1 << 18) | ((1 << 17) if devid == 0x467 else 0)
         self.KEYR, self.OPTKEYR, self.SR, self.CR, self.OPTR = \
             (0x08, 0x10, 0x20, 0x28, 0x40) if self.l5 else (0x08, 0x0C, 0x10, 0x14, 0x20)
+        self.option_regs = (('FLASH_OPTR', self.OPTR),)
         if opts.get('tz') and (self.r(self.OPTR) & (1 << 31)):
             raise Exception('TrustZone is enabled on this chip, not supported')
         fz = opts.get('fz')
@@ -1881,6 +1907,8 @@ class STM32L4Flash(FlashDriver):
 # ===================================================================================
 
 class STM32H7Flash(FlashDriver):
+    option_regs = (('FLASH_OPTSR_CUR', 0x1C),)
+
     def __init__(self, target, part, devid, size):
         super().__init__(target)
         self.base = 0x52002000
@@ -1967,6 +1995,7 @@ class STM32H7Flash(FlashDriver):
 
 class STM32H5Flash(FlashDriver):
     unit = 16
+    option_regs = (('FLASH_OPTSR_CUR', 0x50),)
     iwdg_freeze = (0x44024008, 1 << 12)
 
     def __init__(self, target, part, devid, size):
@@ -2017,6 +2046,7 @@ PY32_VARIANTS = {
 
 class PY32Flash(FlashDriver):
     unit = 128
+    option_regs = (('FLASH_OPTR', 0x20),)
 
     def __init__(self, target, variant):
         super().__init__(target)
@@ -2161,6 +2191,9 @@ class SAMDFlash(FlashDriver):
             flags = self.t.wait(self.base + 0x14, 0x01, 0x01, 2.0)  # INTFLAG.READY
             if flags & 0x02:
                 raise Exception('NVM controller error (STATUS 0x%04x)' % (self.r(0x18) & 0xFFFF))
+
+    def options(self):
+        return [('USER ROW word %d' % i, self.t.try_read32(0x00804000 + 4 * i)) for i in range(3 if self.d5x else 2)]
 
     def _bootprot(self):
         user = self.t.read32(0x00804000)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   TinyUPDI - Minimal application-specific UPDI programmer based on pyupdi
-# Version:   v1.6
+# Version:   v1.7
 # Year:      2022
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -33,7 +33,7 @@
 #
 # Operating Instructions:
 # -----------------------
-# - python3 tinyupdi.py [-h] [-d DEVICE] [-e] [-f FLASH] [-fs [FUSES [FUSES ...]]]
+# - python3 tinyupdi.py [-h] [-d DEVICE] [-e] [-f FLASH] [-fs [FUSES [FUSES ...]]] [-t TRIM] [--list]
 #   -h, --help                show help message and exit
 #   -d, --device              set target device (if not set, it will be auto-detected)
 #   -e, --erase               perform a chip erase (implied with --flash)
@@ -41,6 +41,8 @@
 #   -fs [FUSES [FUSES ...]], --fuses [FUSES [FUSES ...]]
 #                             fuses to set (syntax: fuse_nr:0xvalue, fuse_nr 0 - 10)
 #   -t TRIM, --trim TRIM      configure oscillator for given frequency (fuse 2)
+#   --list                    list supported devices
+#   Without action arguments, the device and its fuses are shown.
 # - Example:
 #   python3 tinyupdi.py -d attiny202 -f firmware.bin -fs 6:0x04 7:0x00 8:0x00 -t 8000000
 
@@ -75,12 +77,17 @@ def _main():
     parser.add_argument('-fs', '--fuses', action='append', nargs='*',
                         help='fuses to set (syntax: fuse_nr:0xvalue)')
     parser.add_argument('-t', '--trim', type=int, help='configure oscillator for given frequency (fuse 2)')
+    parser.add_argument('--list', action='store_true', help='list supported devices')
     args = parser.parse_args(sys.argv[1:])
 
-    # Check arguments
-    if not any( (args.fuses, args.flash, args.erase, args.trim) ):
-        print('No arguments - no action!')
+    # List supported devices
+    if args.list:
+        for d in UPDI_DEVICES:
+            print('%-11s ID 0x%06X, %5d bytes flash' % (d['name'], d['device_id'], d['flash_size']))
         sys.exit(0)
+
+    # Check arguments (without action arguments the device and its fuses are shown)
+    showinfo = not any( (args.fuses, args.flash, args.erase, args.trim) )
 
     if args.fuses is not None:
         fuselist = list()
@@ -127,6 +134,11 @@ def _main():
     try:
         # Unlock device (chip erase by key) if necessary
         if tinyupdi.locked:
+            if showinfo:
+                print('INFO: Device is locked, it can only be unlocked by a chip erase (-e).')
+                tinyupdi.exit()
+                print('DONE.')
+                sys.exit(0)
             if not ((args.erase) or (data is not None)):
                 raise Exception('Device is locked, use -e or -f to unlock it (erases the chip)')
             print('Device is locked, unlocking with chip erase ...')
@@ -141,6 +153,11 @@ def _main():
             raise Exception('Found device is not ' + args.device)
         if (data is not None) and (len(data) > tinyupdi.flash_size):
             raise Exception('Not enough memory (file: %d bytes, flash: %d bytes)' % (len(data), tinyupdi.flash_size))
+
+        # Show fuses (no action arguments)
+        if showinfo:
+            for fusenum, value in enumerate(tinyupdi.read_fuses()):
+                print('Fuse %2d %-11s 0x%02x' % (fusenum, '(%s):' % UPDI_FUSE_NAMES[fusenum], value))
 
         # Perform chip erase
         if (args.erase) or (data is not None):
@@ -289,6 +306,10 @@ class Programmer(Serial):
     # Set single fuse
     def set_fuse(self, fusenum, value):
         self.__write_fuse(fusenum, value)
+
+    # Read all fuses
+    def read_fuses(self):
+        return [self.__read_fuse(fusenum) for fusenum in range(UPDI_MAX_FUSE + 1)]
 
     # Verify single fuse
     def verify_fuse(self, fusenum, value):
@@ -812,6 +833,7 @@ UPDI_V0_NVMCTRL_CTRLA_WRITE_FUSE = 0x07
 UPDI_FUSE_OSCCFG = 0x02
 UPDI_FUSE_SYSCFG0 = 0x05
 UPDI_MAX_FUSE = 0x0A
+UPDI_FUSE_NAMES = ('WDTCFG', 'BODCFG', 'OSCCFG', '-', 'TCD0CFG', 'SYSCFG0', 'SYSCFG1', 'APPEND', 'BOOTEND', '-', 'LOCKBIT')
 
 UPDI_NVM_STATUS_WRITE_ERROR = 2
 UPDI_NVM_STATUS_EEPROM_BUSY = 1

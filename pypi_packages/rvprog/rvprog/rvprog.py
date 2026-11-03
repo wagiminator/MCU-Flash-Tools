@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   rvprog - Programming Tool for WCH RISC-V Microcontrollers with WCH-LinkE
-# Version:   v1.12
+# Version:   v1.13
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -46,7 +46,7 @@
 # Connect the WCH-Link to your PC and to your WCH RISC-V MCU board. The WCH-Link
 # must be in LinkRV mode (blue LED off)! If not, run: python rvprog.py -v
 # Run:
-# - rvprog.py [-h] [-a] [-v] [-b] [-u] [-l] [-e] [-G] [-R] [-f FLASH]
+# - rvprog.py [-h] [-a] [-v] [-b] [-u] [-l] [-e] [-G] [-R] [-f FLASH] [--list]
 #   -h, --help                show help message and exit
 #   -a, --armmode             switch WCH-Link to ARM mode
 #   -v, --rvmode              switch WCH-Link to RISC-V mode
@@ -57,6 +57,8 @@
 #   -G, --pingpio             make PD7 a GPIO pin (CH32V00x only)
 #   -R, --pinreset            make PD7 a reset pin (CH32V00x only)
 #   -f FLASH, --flash FLASH   write BIN file to flash
+#   --list                    list supported chips
+#   Without action arguments, the programmer and the chip are shown.
 #
 # - Example:
 #   python3 rvprog.py -f firmware.bin
@@ -84,12 +86,19 @@ def _main():
     parser.add_argument('-G', '--pingpio',  action='store_true', help='make PD7 a GPIO pin (CH32V00x only)')
     parser.add_argument('-R', '--pinreset', action='store_true', help='make PD7 a reset pin (CH32V00x only)')
     parser.add_argument('-f', '--flash',    help='write BIN file to flash and verify')
+    parser.add_argument('--list',           action='store_true', help='list supported chips')
     args = parser.parse_args(sys.argv[1:])
 
-    # Check arguments
-    if not any( (args.armmode, args.rvmode, args.unbrick, args.unlock, args.lock, args.erase, args.pingpio, args.pinreset, args.flash) ):
-        print('No arguments - no action!')
+    # List supported chips
+    if args.list:
+        for f in FAMILIES:
+            names = list(dict.fromkeys(d['name'] for d in DEVICES if d['id'] >> 4 == f['id']))
+            size  = ('%d KB flash' % (f['code_size'] // 1024)) if f['code_size'] else 'flash size from chip'
+            print('%-9s (%s): %s' % (f['name'], size, ', '.join(names) if names else f['name']))
         sys.exit(0)
+
+    # Check arguments (without action arguments the programmer and the chip are shown)
+    showinfo = not any( (args.armmode, args.unbrick, args.unlock, args.lock, args.erase, args.pingpio, args.pinreset, args.flash) )
     if args.pingpio and args.pinreset:
         sys.stderr.write('ERROR: Options -G and -R exclude each other!\n')
         sys.exit(1)
@@ -141,12 +150,19 @@ def _main():
             print('SUCCESS: Chip is unbricked.')
 
         # Establish connection to target MCU
-        if any( (args.unlock, args.lock, args.erase, data, args.pingpio, args.pinreset) ):
+        if any( (args.unlock, args.lock, args.erase, data, args.pingpio, args.pinreset, showinfo) ):
             print('Connecting to MCU ...')
             isp.connect()
             print('SUCCESS: Connected to %s with %d bytes of flash.' % (isp.chipname, isp.flashsize))
             if isp.family.get('minlink', 0) > isp.linkvercode:
                 print('WARNING: WCH-Link firmware may be too old for this MCU!')
+
+        # Show read protection (no action arguments)
+        if showinfo:
+            if isp.family['protect'] is None:
+                print('Read protection: not supported by this MCU')
+            else:
+                print('Read protection: %s' % ('on (locked)' if isp.islocked() else 'off'))
 
         # Unlock chip
         if args.unlock:

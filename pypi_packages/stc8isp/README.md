@@ -35,7 +35,7 @@ USB2SERIAL         STC8G/8H
 ```
 
 ```
-Usage: stc8isp [-h] [-p PORT] [-t TRIM] [-e] [-f FLASH]
+Usage: stc8isp [-h] [-p PORT] [-t TRIM] [-e] [-f FLASH] [--list]
 
 Optional arguments:
   -h,       --help          show this help message and exit
@@ -43,10 +43,13 @@ Optional arguments:
   -t TRIM,  --trim TRIM     trim IRC to frequency in Hz (128000 - 36000000)
   -e,       --erase         perform chip erase (implied with -f)
   -f FLASH, --flash FLASH   write BIN file to flash
+  --list                    list supported chips
 
 Example:
 stc8isp -p /dev/ttyUSB0 -t 24000000 -f firmware.bin
 ```
+
+Without action arguments (only -p), stc8isp shows the chip, its frequency, flash size and option bytes.
 
 ## Links
 - [MCU Flash Tools](https://github.com/wagiminator/MCU-Flash-Tools)

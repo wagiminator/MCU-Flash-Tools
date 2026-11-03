@@ -59,6 +59,8 @@ Example:
 tinyocd -f firmware.bin
 ```
 
+Without action arguments, tinyocd shows the programmer, the chip, whether it is read protected and its option byte registers (user row on SAMD). Then the firmware is started.
+
 Notes:
 - The BIN file is written to the start of the flash memory (0x08000000 for STM32/PY32, 0x00000000 for SAMD).
 - If the chip cannot be halted (e.g. SWD pins disabled by the firmware), tinyOCD connects under reset. For this, NRST must be connected to the programmer.

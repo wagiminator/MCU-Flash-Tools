@@ -57,7 +57,7 @@ If the blue LED on the WCH-Link remains illuminated once it is connected to the 
 More information can be found in the [WCH-Link User Manual](http://www.wch-ic.com/downloads/WCH-LinkUserManual_PDF.html).
 
 ```
-Usage: rvprog [-h] [-a] [-v] [-b] [-u] [-l] [-e] [-G] [-R] [-f FLASH]
+Usage: rvprog [-h] [-a] [-v] [-b] [-u] [-l] [-e] [-G] [-R] [-f FLASH] [--list]
 
 Optional arguments:
   -h, --help                show help message and exit
@@ -70,10 +70,13 @@ Optional arguments:
   -G, --pingpio             make PD7 a GPIO pin (CH32V00x only)
   -R, --pinreset            make PD7 a reset pin (CH32V00x only)
   -f FLASH, --flash FLASH   write BIN file to flash
+  --list                    list supported chips
 
 Example:
 rvprog -f firmware.bin
 ```
+
+Without action arguments, rvprog shows the programmer, the chip, its flash size and whether the chip is read protected.
 
 ## Links
 - [MCU Flash Tools](https://github.com/wagiminator/MCU-Flash-Tools)
