@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name         = "stc8usb"
-version      = "1.2.0"
+version      = "1.3.0"
 description  = "USB Programming Tool for STC8H8KxxU Microcontrollers"
 keywords     = ["ISP", "USB", "STC", "STC8", "STC8H8K64U", "STC8H8K32U", "STC8H8K16U", "microcontroller"]
 dependencies = ["hidapi"]

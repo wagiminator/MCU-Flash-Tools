@@ -626,7 +626,7 @@ To initiate new uploads, the bootloader needs to be manually started. Begin by u
 If your board doesn't have a BOOT button, you'll need to short pin P3.2 to ground while connecting to achieve the same effect.
 
 ```
-Usage: stc8usb.py [-h] [-t TRIM] [-e] [-f FLASH]
+Usage: stc8usb.py [-h] [-t TRIM] [-e] [-f FLASH] [--list] [--debug]
 
 Optional arguments:
   -h,       --help          show this help message and exit
@@ -634,9 +634,10 @@ Optional arguments:
   -e,       --erase         perform chip erase (implied with -f)
   -f FLASH, --flash FLASH   write BIN file to flash
   --list                    list supported chips
+  --debug                   show the data blocks sent and received
 
-Without arguments, stc8usb shows the chip, its frequency, 
-flash size and option bytes.
+Without arguments, stc8usb shows the chip, its frequency 
+and flash size.
 
 Example:
 python3 stc8usb.py -t 24000000 -f firmware.bin

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   stc8usb - USB Programming Tool for STC8H8KxxU Microcontrollers
-# Version:   v1.2
+# Version:   v1.3
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -41,8 +41,8 @@
 # to short pin P3.2 to ground while connecting.
 #
 # Run "python3 stc8usb.py -t 24000000 -f firmware.bin".
-# Run "python3 stc8usb.py" without arguments to show the chip and its option bytes,
-# "python3 stc8usb.py --list" to list the supported chips.
+# Run "python3 stc8usb.py" without arguments to show the chip, "python3 stc8usb.py
+# --list" to list the supported chips, add "--debug" to show the data blocks.
 
 # ===================================================================================
 # Libraries
@@ -69,6 +69,7 @@ def _main():
     parser.add_argument('-e', '--erase', action='store_true', help='perform chip erase (implied with -f)')
     parser.add_argument('-f', '--flash', help='write BIN file to flash')
     parser.add_argument('--list',        action='store_true', help='list supported chips')
+    parser.add_argument('--debug',       action='store_true', help='show the data blocks sent and received')
     args = parser.parse_args(sys.argv[1:])
 
     # List supported chips
@@ -101,7 +102,7 @@ def _main():
     # Establish connection to MCU
     try:
         print('Connecting to MCU via USB ...')
-        isp = Programmer()
+        isp = Programmer(debug=args.debug)
     except Exception as ex:
         sys.stderr.write('ERROR: ' + str(ex) + '!\n')
         sys.exit(1)
@@ -115,7 +116,6 @@ def _main():
         # Show chip info only (no action arguments)
         if showinfo:
             print('Flash size: %d bytes' % isp.flash_size)
-            print('Option bytes: %s' % ' '.join('%02x' % x for x in isp.options))
 
         # Check if binary fits into flash
         if data is not None and len(data) > isp.flash_size:
@@ -159,8 +159,9 @@ def _main():
 
 class Programmer:
     # Init programmer
-    def __init__(self):
+    def __init__(self, debug=False):
         self.is_open = False
+        self.debug = debug
         self.dev = HIDDevice(STC_VID, STC_PID)
         self.is_open = True
 
@@ -183,12 +184,16 @@ class Programmer:
         block += data
         block += (parity & 0xffff).to_bytes(2, byteorder='big')
         block += [STC_SUFFIX]
+        if self.debug:
+            sys.stderr.write('TX: %s\n' % bytes(block).hex(' '))
         block  = self.paddata(bytes(block), STC_HID_SIZE, 0x00)
         self.dev.write(block)                   # HID report without report ID
 
     # Receive and check data block
     def receive(self, timeout=None):
         reply = self.dev.read(STC_HID_SIZE, STC_TIMEOUT if timeout is None else timeout)
+        if self.debug:
+            sys.stderr.write('RX: %s\n' % reply.hex(' '))
         if len(reply) != STC_HID_SIZE:
             raise Exception('No response from device')
         if reply[0] != STC_PREFIX or reply[1] != (STC_PREFIX ^ 0xff) or reply[2] != STC_RX_CODE:
@@ -209,8 +214,8 @@ class Programmer:
     def connect(self):
         self.transmit([STC_CMD_INIT])
         reply = self.receive()
-        if len(reply) < 23 or reply[0] != STC_RPL_INFO:
-            raise Exception('Invalid response from MCU')
+        if len(reply) < 23:
+            raise Exception('Invalid response from MCU (%s)' % reply.hex(' '))
 
         # Get chip ID
         self.chipid = int.from_bytes(reply[20:22], byteorder='big')
@@ -238,20 +243,11 @@ class Programmer:
         else:
             self.foscstr = str(self.fosc) + ' Hz'
 
-        # Get option bytes (MCS register values)
-        self.options = reply[9:12] + reply[15:17]
-        
         # Set BAUD (dummy)
         self.transmit([STC_CMD_BAUD_SET, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80])
-        reply = self.receive()
-        if len(reply) < 1 or reply[0] != STC_CMD_BAUD_SET:
-            raise Exception('Failed to prepare MCU')
+        self.receive()
         self.transmit([STC_CMD_BAUD_CHECK, 0x00, 0x00, 0x5a, 0xa5])
-        reply = self.receive()
-        if len(reply) == 1 and reply[0] == STC_RPL_LOCKED:
-            raise Exception('MCU is locked')
-        if len(reply) < 1 or reply[0] != STC_CMD_BAUD_CHECK:
-            raise Exception('Failed to prepare MCU')
+        self.receive()
 
     # Disconnect from MCU
     def disconnect(self):
@@ -280,11 +276,11 @@ class Programmer:
             block += data[offset:offset + STC_PAGE_SIZE]
             self.transmit(block)
             reply = self.receive()
-            if len(reply) < 1 or reply[0] != STC_CMD_WRITE_CONT or (len(reply) >= 2 and reply[1] != STC_OK):
+            if len(reply) < 1 or reply[0] != STC_CMD_WRITE_CONT:
                 raise Exception('Failed to write to address 0x%04x' % (addr + offset))
             cmd = STC_CMD_WRITE_CONT
 
-    # Set frequency by writing option bytes (keeps the MCS register values of the MCU)
+    # Set frequency by writing option bytes
     def setfreq(self, freq):
         trim = gettrim(freq)
         if trim is None:
@@ -293,11 +289,10 @@ class Programmer:
         block += STC_BLOCK_OPTIONS1
         block += freq.to_bytes(4, byteorder='big')
         block += trim
-        block += [0xff, self.options[0], 0xff, 0xff, STC_BLOCK_OPTIONS2[4]]
-        block += list(self.options[1:5])
+        block += STC_BLOCK_OPTIONS2
         self.transmit(block)
         reply = self.receive()
-        if len(reply) < 1 or reply[0] != STC_CMD_OPTIONS or (len(reply) >= 2 and reply[1] != STC_OK):
+        if len(reply) < 1 or reply[0] != STC_CMD_OPTIONS:
             raise Exception('Failed to write option bytes')
 
     # Pad data
@@ -369,9 +364,6 @@ STC_BREAK          = 0x5a
 STC_SUFFIX         = 0x16
 STC_TX_CODE        = 0x6a
 STC_RX_CODE        = 0x68
-STC_RPL_INFO       = 0x50
-STC_RPL_LOCKED     = 0x0f
-STC_OK             = 0x54
 
 STC_CMD_INIT       = 0x00
 STC_CMD_BAUD_SET   = 0x01
