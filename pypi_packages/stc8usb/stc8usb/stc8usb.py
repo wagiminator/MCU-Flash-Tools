@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ===================================================================================
 # Project:   stc8usb - USB Programming Tool for STC8H8KxxU Microcontrollers
-# Version:   v1.1
+# Version:   v1.2
 # Year:      2023
 # Author:    Stefan Wagner
 # Github:    https://github.com/wagiminator
@@ -16,16 +16,21 @@
 #
 # Dependencies:
 # -------------
-# - pyhidapi
+# - hidapi (cython-hidapi, recommended) or hid (pyhidapi)
 #
 # Operating Instructions:
 # -----------------------
-# You need to install pyhidapi to use stc8usb.
-# Install it via "python3 -m pip install hid".
+# You need to install a Python HID library to use stc8usb. Install it via
+# "python3 -m pip install hidapi" (includes the HIDAPI library). Alternatively the
+# package "hid" (pyhidapi) can be used, it needs the system library libhidapi
+# (Debian/Ubuntu: "sudo apt install libhidapi-hidraw0").
 #
 # By default Linux will not expose enough permission to access the USB bootloader.
-# In order to fix this, open a terminal and run the following commands:
+# The bootloader is a HID device, which is accessed via /dev/hidraw*. In order to
+# fix this, open a terminal and run the following commands, then reconnect the
+# bootloader:
 # echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="34bf", ATTR{idProduct}=="1001", MODE="666"' | sudo tee /etc/udev/rules.d/99-STC-ISP.rules
+# echo 'KERNEL=="hidraw*", ATTRS{idVendor}=="34bf", ATTRS{idProduct}=="1001", MODE="666"' | sudo tee -a /etc/udev/rules.d/99-STC-ISP.rules
 # sudo udevadm control --reload-rules
 #
 # The bootloader must be started manually for new uploads. To do this, the board must
@@ -44,8 +49,14 @@
 # ===================================================================================
 
 import sys
-import hid
 import argparse
+
+try:
+    import hid
+except ImportError as ex:
+    sys.stderr.write('ERROR: HID library not available (%s)!\n' % ex)
+    sys.stderr.write('Install it via "python3 -m pip install hidapi".\n')
+    sys.exit(1)
 
 # ===================================================================================
 # Main Function
@@ -149,11 +160,8 @@ def _main():
 class Programmer:
     # Init programmer
     def __init__(self):
-        # Find programmer
-        try:
-            self.dev = hid.Device(STC_VID, STC_PID)
-        except:
-            raise Exception('No STC USB bootloader found (VID:PID %04x:%04x)' % (STC_VID, STC_PID))
+        self.is_open = False
+        self.dev = HIDDevice(STC_VID, STC_PID)
         self.is_open = True
 
     # Close connection   
@@ -176,7 +184,7 @@ class Programmer:
         block += (parity & 0xffff).to_bytes(2, byteorder='big')
         block += [STC_SUFFIX]
         block  = self.paddata(bytes(block), STC_HID_SIZE, 0x00)
-        self.dev.write(block)
+        self.dev.write(block)                   # HID report without report ID
 
     # Receive and check data block
     def receive(self, timeout=None):
@@ -297,6 +305,46 @@ class Programmer:
         if (len(data) % pagesize) > 0:
             data += bytes([filler]) * (pagesize - (len(data) % pagesize))
         return data
+
+# ===================================================================================
+# HID Device (works with the Python packages "hidapi" and "hid")
+# ===================================================================================
+
+class HIDDevice:
+    def __init__(self, vid, pid):
+        # Find device (enumeration works without access rights)
+        try:
+            devices = hid.enumerate(vid, pid)
+        except Exception as ex:
+            raise Exception('HID enumeration failed (%s)' % ex)
+        if not devices:
+            raise Exception('No STC USB bootloader found (VID:PID %04x:%04x)' % (vid, pid))
+
+        # Open device
+        path = devices[0]['path']
+        try:
+            if hasattr(hid, 'Device'):          # package "hid" (pyhidapi)
+                self.dev = hid.Device(path=path)
+            else:                               # package "hidapi" (cython-hidapi)
+                self.dev = hid.device()
+                self.dev.open_path(path)
+        except Exception as ex:
+            msg = 'STC USB bootloader found, but it cannot be opened (%s)' % ex
+            if sys.platform.startswith('linux'):
+                msg += '. Missing access rights to %s? Install the udev rules (see "stc8usb.py" header) ' \
+                       'and reconnect the bootloader' % path.decode(errors='replace')
+            raise Exception(msg)
+
+    def write(self, data):
+        # The first byte is the report ID (0: the device uses no report IDs)
+        if self.dev.write(bytes([0x00]) + bytes(data)) < 0:
+            raise Exception('Failed to write to device')
+
+    def read(self, size, timeout):
+        return bytes(self.dev.read(size, timeout))
+
+    def close(self):
+        self.dev.close()
 
 # Get trim values for frequency
 def gettrim(freq):

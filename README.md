@@ -13,11 +13,11 @@ This is a compilation of straightforward In-System Programming (ISP) flash tools
 - [stc8usb.py  - Flashing STC8H8KxxU via embedded USB bootloader](#stc8usb)
 - [tinypro.py  - Flashing (E)EPROMs with XGecu TL866A, TL866CS, TL866II+, and T48](#tinypro)
 
-In order for these tools to work, Python3 must be installed on your system. To do this, follow these [instructions](https://www.pythontutorial.net/getting-started/install-python/). In addition [PyUSB](https://github.com/pyusb/pyusb), [PySerial](https://github.com/pyserial/pyserial) and [pyhidapi](https://pypi.org/project/hid/) must be installed. On Linux (Debian-based), all of this can be done with the following commands:
+In order for these tools to work, Python3 must be installed on your system. To do this, follow these [instructions](https://www.pythontutorial.net/getting-started/install-python/). In addition [PyUSB](https://github.com/pyusb/pyusb), [PySerial](https://github.com/pyserial/pyserial) and [hidapi](https://pypi.org/project/hidapi/) must be installed. On Linux (Debian-based), all of this can be done with the following commands:
 
 ```
 sudo apt install python3 python3-pip
-pip install pyusb pyserial hid
+pip install pyusb pyserial hidapi
 ```
 
 Windows users in particular may also need to install [libusb](https://github.com/libusb/libusb).
@@ -616,6 +616,7 @@ Because the USB bootloader functions as a Human Interface Device (HID), there's 
 
 ```
 echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="34bf", ATTR{idProduct}=="1001", MODE="666"' | sudo tee /etc/udev/rules.d/99-STC-ISP.rules
+echo 'KERNEL=="hidraw*", ATTRS{idVendor}=="34bf", ATTRS{idProduct}=="1001", MODE="666"' | sudo tee -a /etc/udev/rules.d/99-STC-ISP.rules
 sudo udevadm control --reload-rules
 ```
 
