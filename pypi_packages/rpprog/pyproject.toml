@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name         = "rpprog"
+version      = "1.0.0"
+description  = "USB Programming Tool for Raspberry Pi RP2040 and RP2350"
+keywords     = ["ISP", "PICOBOOT", "RP2040", "RP2350", "Raspberry Pi Pico", "Pico 2", "UF2", "microcontroller"]
+dependencies = ["pyusb", "pyserial", "libusb-package; platform_system == 'Windows'"]
+requires-python = ">=3.6"
+authors = [
+    { name="Stefan Wagner", email="wagiminator@web.de" },
+]
+maintainers = [
+    { name="Stefan Wagner", email="wagiminator@web.de" },
+]
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Embedded Systems",
+]
+
+[project.scripts]
+rpprog = "rpprog.rpprog:_main"
+
+[project.urls]
+Homepage   = "https://wagiminator.github.io/"
+Repository = "https://github.com/wagiminator/MCU-Flash-Tools"
+Issues     = "https://github.com/wagiminator/MCU-Flash-Tools/issues"
